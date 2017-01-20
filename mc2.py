@@ -25,7 +25,7 @@ _thisDir = os.path.dirname(os.path.abspath(__file__))
 # ====================================================================================
 ## Initial variables.
 et = 0
-expName = 'mcEcc_ct-tRelXbv'
+expName = 'mc2_t'
 # Window circles (specified in degrees of visual angles [dva]):
 #winSz = 7.2 # 5.03; calculated as 5/x=sqrt(2)/2 => x=10/sqrt(2)
 winOffX = 4.25 # 6 # 5.62
