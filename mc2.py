@@ -10,7 +10,7 @@ from psychopy.constants import *  # things like STARTED, FINISHED
 import numpy as np
 import pandas as pd
 from datetime import datetime
-import os, shutil, itertools  # handy system and path functions
+import os, shutil, itertools, copy  # handy system and path functions
 #import pyglet
 #import MotionClouds as mc
 
@@ -25,23 +25,18 @@ _thisDir = os.path.dirname(os.path.abspath(__file__))
 # ====================================================================================
 ## Initial variables.
 et = 0
-expName = 'mc2_targOnXmaskBv'
+expName = 'mc2_tgT-mcBv_test'
 # Window circles (specified in degrees of visual angles [dva]):
 #winSz = 7.2 # 5.03; calculated as 5/x=sqrt(2)/2 => x=10/sqrt(2)
 winOffX = 4.25 # 6 # 5.62
 winOffY = 3.5 # 5.5 (3.5cm ~= 124px)
 winThickness = 2 # in pixels
-fdbkLen = .25 # the length of the feedback line, in degrees
-fdbkThick = 4 # the tickness of the feedback line, in pixels
 # Timing variables:
-ISIduration = .5
+ISIduration = .25
 fixSz = .15
 # MCs:
 precompileMode = 1 # get the precompiled MCs
 grtSize = 256 # size of 256 is 71mm, or 7.2dova
-defAlpha = .2
-# Ring steps (for ct):
-ringSteps = 10
 # Dimensions:
 ###### 7.2dova = 71mm = 256px; 475x296mm, 563mm viewing dist ######
 dr = (1680,1050) # display resolution in px
@@ -78,14 +73,12 @@ def dg2px(dg,cm2px=cm2px,dg2cm=dg2cm):
 winSz = grtSize + 2
 winOffX = dg2px(winOffX)
 winOffY = dg2px(winOffY)
-fdbkLen = dg2px(fdbkLen)
 fixSz = dg2px(fixSz)
 posCentL = [-winOffX, winOffY]
 posCentR = [winOffX, winOffY]
-print winSz 
-print posCentL 
-print posCentR 
-print fdbkLen 
+#print winSz 
+#print posCentL 
+#print posCentR 
 
 # ====================================================================================
 # Eye tracking initialization
@@ -297,20 +290,24 @@ for thisComponent in instructionsComponents:
 # ====================================================================================
 # Setting up the conditions:
 condList = data.importConditions(conditionsFilePath)
-conds = []
-commonNTrials = []
-for thisCondition in condList:
-    nTrials = thisCondition['trialN']
-    # print 'Number of trials in this condition: ' + str(nTrials)
-    conds.append(thisCondition)
-    commonNTrials = nTrials
+stairs = []
+for thisCond in condList:
+    thisInfo = copy.copy(thisCond)
+    stairLabel = 'st-' + str(thisCond['startContr']) + \
+                 '_mcBv-' + str(thisCond['mcBv']) + \
+                 '_targTpeak-' + str(thisCond['targTpeak'])
+    thisInfo['label'] = stairLabel
+    nTrials = thisCond['trialN']
+    thisStair = data.QuestHandler(startVal = thisInfo['startContr'],
+                                  extraInfo = thisInfo,
+                                  startValSd = .2, pThreshold = .63,
+                                  gamma = 0.01, nTrials = nTrials,
+                                  minVal=0, maxVal=1)
+    stairs.append(thisStair)
 
 # An empty data set for storing behavioural responses:
 behResp = []
     
-# Printing the attributes of the conds:  
-print commonNTrials
-trials = data.TrialHandler(conds, commonNTrials, extraInfo=expInfo)
 # Creating a copy of the Conditions file for book-keeping and analyses:
 if not os.path.exists(filePath):
     os.makedirs(filePath)
@@ -404,268 +401,304 @@ for thisComponent in instructionsComponents:
 # Initiating the trial loop
 
 nDone=0
-for thisTrial in trials:
-    print '===new=trial==='
-    nDone += 1
-    if trialNfb:
-        trialNfbText.text = str(nDone) + '/' + str(trials.nTotal)
-    print 'trial#' + str(nDone) + '/' + str(trials.nTotal)
+for trialN in range(nTrials):
+    np.random.shuffle(stairs)
+    for thisStair in stairs:
 
-    ## Setting up trial variables
-
-    # Mask:
-    maskSz = thisTrial['maskSz']
-    maskSf = thisTrial['maskSf']
-    maskBv = thisTrial['maskBv']
-    maskBsf = thisTrial['maskBsf']
-
-    # Target:
-    targSz = thisTrial['targSz']
-    targSf = thisTrial['targSf']
-    targXoff = thisTrial['targXoff']
-    targYoff = thisTrial['targYoff']
-    targV = thisTrial['targV']
-
-    # Target response criteria:
-    targOri1 = thisTrial['targOri1']
-    targOri2 = thisTrial['targOri2']
-    if not targOri1 == targOri2: # if the two targ oris are not the same, decided randomly
-        allTargOris = np.array([targOri1, targOri2])
-        thisTargOri = allTargOris[np.random.randint(2)]
-
-    # Setting up the target with the above characteristics:
-    targGab.size = targSz
-    targGab.sf = targSf
-    targGab.pos = targGab.pos + np.array([targXoff, targYoff])
-    targGab.ori = thisTargOri
-
-    # Temporal variables:
-    targTtot = thisTrial['targTtot']
-    targTpeak = thisTrial['targTpeak']
-    print targTpeak
-    targTstart = targTpeak-(targTtot/2)
-    targTend = targTpeak+(targTtot/2)
-    maxContr = 1
-    trialT = thisTrial['trialT'] # -win.monitorFramePeriod*0.75
-
-    # view setup: fade, gap, and fixation cross
-    fixCross = thisTrial['fixCross']
-    periFade = thisTrial['maskPeriFade']
-    periGap = np.int(maskSz / 2 - periFade)
-    #print 'periFade=' + str(periFade) + '; periGap=' + str(periGap)
-
-    nFrames = 60 # number of frames per sequence
-    
-    # creating an empty matrix for keeping the behavioural responses:
-    behRespTrial = []
-        
-    # initiating the mc gratings:
-    maskV = 0
-    grt = np.load(precompiledDir + os.sep + 'mc_' + str(maskV) +
-            '_sf' + str(maskSf) + '_bsf' + str(maskBsf) + '_bv' + str(maskBv) + 
-            '_sz' + str(maskSz) + '.npy')
-
-    # creating a mask, which is fixed for a given trial:
-    mcPeriMask = periMask(periGap, periFade)
-
-    #------prepare to start routine "trial"-------
-    t = 0
-    trialClock.reset()  # clock 
-    frameN = -1
-
-    # anchors:
-    elStopped = False
-    keyPause = False
-    targRespGiven = False
-    behRespRecorded = False
-
-    # update component parameters for each repeat
-    key_arrow = event.BuilderKeyResponse()  # create an object of type keyresponse
-    key_arrow.status = NOT_STARTED
-    # keep track of which components have finished
-    trialComponents = []
-    trialComponents.append(winL)
-    trialComponents.append(winR)
-    trialComponents.append(pauseTextL)
-    trialComponents.append(pauseTextR)
-    trialComponents.append(fixL)
-    trialComponents.append(fixR)
-    trialComponents.append(key_arrow)
-    trialComponents.append(ISI)
-    for thisComponent in trialComponents:
-        if hasattr(thisComponent, 'status'):
-            thisComponent.status = NOT_STARTED
-    
-    # ////////////////////////////////////////////////////////////////////////////////
-    if et:
-        el.sendMessage("TRIALID " + str(nDone))
-        trialStartStr = datetime.now().strftime('%Y-%m-%d_%H%M%S')
-        el.sendMessage("TIMESTAMP " + trialStartStr)
-        el.setOfflineMode()
-        pl.msecDelay(50) 
-        error = el.startRecording(1,1,1,1)
-    # ////////////////////////////////////////////////////////////////////////////////
-    
-    #-------Start Routine "trial"-------
-    continueRoutine = True
-    while continueRoutine:
-        # get current time
-        t = trialClock.getTime()
-        frameN = frameN + 1 # number of completed frames (0 is the first frame)
-        # update/draw components on each frame
-        
-        # *winL* updates
-        if winL.status == NOT_STARTED:
-            # keep track of start time/frame for later
-            winL.tStart = t  # underestimates by a little under one frame
-            winL.frameNStart = frameN  # exact frame index
-            winL.setAutoDraw(True)
-            winL.status = STARTED
-        
-        # *winR* updates
-        if winR.status == NOT_STARTED:
-            # keep track of start time/frame for later
-            winR.tStart = t  # underestimates by a little under one frame
-            winR.frameNStart = frameN  # exact frame index
-            winR.setAutoDraw(True)
-            winR.status = STARTED
-
+        nDone += 1
         if trialNfb:
-            trialNfbText.draw()
+            trialNfbText.text = str(nDone) + '/' + str(trials.nTotal)
+        trialNstr = '#' + str(nDone) + '/' + str(nTrials*len(stairs))
 
-        # mcMask and targ presentation:
-        if t < trialT:
-            # mcMask:
-            mcMask = visual.GratingStim(win, tex=grt[:,:,frameN%nFrames], 
-                size=(grtSize,grtSize), pos=[winOffX, winOffY], 
-                interpolate=False, mask=mcPeriMask)
-            mcMask.draw()
-            # target presentation:
-            if t > targTstart and t < targTpeak:
-                targGab.opacity = sigmoidMod((t-targTstart)*2/targTtot)*maxContr
-            elif t > targTpeak and t < targTend:
-                targGab.opacity = sigmoidMod((targTend-t)*2/targTtot)*maxContr
-            else:
-                targGab.opacity = 0
-            targGab.draw()
+        ## Setting up trial variables
+
+        # current contrast:
+        thisContr = thisStair.next()
+        contrStr = 'start=%.1f, cur=%.2f' %(thisStair.extraInfo['startContr'], thisContr)
+
+        # mc mask:
+        mcSz = thisStair.extraInfo['mcSz']
+        mcSf = thisStair.extraInfo['mcSf']
+        mcBv = thisStair.extraInfo['mcBv']
+        mcBsf = thisStair.extraInfo['mcBsf']
+
+        # target:
+        targSz = thisStair.extraInfo['targSz']
+        targSf = thisStair.extraInfo['targSf']
+        targXoff = thisStair.extraInfo['targXoff']
+        targYoff = thisStair.extraInfo['targYoff']
+        targV = thisStair.extraInfo['targV']
+
+        # Target response criteria:
+        targOri1 = thisStair.extraInfo['targOri1']
+        targOri2 = thisStair.extraInfo['targOri2']
+        if not targOri1 == targOri2: # if the two targ oris are not the same, decided randomly
+            allTargOris = np.array([targOri1, targOri2])
+            thisTargOri = allTargOris[np.random.randint(2)]
+
+        # Setting up the target with the above characteristics:
+        targGab.size = targSz
+        targGab.sf = targSf
+        targGab.pos = targGab.pos + np.array([targXoff, targYoff])
+        targGab.ori = thisTargOri
+
+        # Temporal variables:
+        targTtot = thisStair.extraInfo['targTtot']
+        targTpeak = thisStair.extraInfo['targTpeak']
+        targTstart = targTpeak-(targTtot/2)
+        targTend = targTpeak+(targTtot/2)
+        trialT = thisStair.extraInfo['trialT'] # -win.monitorFramePeriod*0.75
+        
+        print 'TRIAL' + '\t' + 'CONTRAST' + '\t\t' + 'mcBv' + '\t' + 'targOri' + '\t' + 'targTpeak'
+        print trialNstr + '\t' + contrStr + '\t' + str(mcBv) + '\t' + str(thisTargOri) + '\t' + str(targTpeak)
+
+        # view setup: fade, gap, and fixation cross
+        fixCross = thisStair.extraInfo['fixCross']
+        periFade = thisStair.extraInfo['mcPeriFade']
+        periGap = np.int(mcSz / 2 - periFade)
+        #print 'periFade=' + str(periFade) + '; periGap=' + str(periGap)
+
+        nFrames = 60 # number of frames per sequence
+        
+        # creating an empty matrix for keeping the behavioural responses:
+        behRespTrial = []
             
-            # drawing the fixation cross, if any:
-            if fixCross:
-                fixL.draw()
-                fixR.draw()
-        
-        # *key_arrow* updates for target reponses:
-        if key_arrow.status == NOT_STARTED:
-            # keep track of start time/frame for later
-            key_arrow.tStart = t  # underestimates by a little under one frame
-            key_arrow.frameNStart = frameN  # exact frame index
-            key_arrow.status = STARTED
-            # keyboard checking is just starting
-            key_arrow.clock.reset()  # now t=0
-            event.clearEvents(eventType='keyboard')
-            kb_device.clearEvents()
-        # registering response at throughout the trial
-        if key_arrow.status == STARTED:
-            theseKeys = event.getKeys(keyList=['left','right'])
-            if len(theseKeys) > 0:
-                if 'left' in theseKeys:
-                    print 'left tilt indicated'
-                    behRespTrial = targOri1 # the first number is negative
-                    targRespGiven = True
-                elif 'right' in theseKeys:
-                    print 'right tilt indicated'
-                    behRespTrial = targOri1 # the second number is positive
-                    targRespGiven = True
+        # initiating the mc gratings:
+        mcV = 0
+        grt = np.load(precompiledDir + os.sep + 'mc_' + str(mcV) +
+                '_sf' + str(mcSf) + '_bsf' + str(mcBsf) + '_bv' + str(mcBv) + 
+                '_sz' + str(mcSz) + '.npy')
 
-        if t > trialT and not elStopped:
-            # stopping eye-tracking recording:
-            if et:
-                elEndRec(el)
-                elStopped = True
+        # creating a mask, which is fixed for a given trial:
+        mcPeriMask = periMask(periGap, periFade)
 
-        # pause text and data exporting
-        if targRespGiven and not keyPause and t>trialT:
-            if 'space' in event.getKeys(keyList=['space']):
-                keyPause = True
-                # Computing and recording predominance:
-                dT = pd.DataFrame({'expName': expName, 'time': expInfo['time'],
-                                'participant': expInfo['participant'], 'session': expInfo['session'],
-                                'trialN': nDone, 'maskSz': maskSz, 'maskSf': maskSf, 'maskBv': maskBv,
-                                'maskBsf': maskBsf, 'periGap': periGap, 'periFade': periFade,
-                                'targSz': targSz, 'targSf': targSf, 'thisTargOri': thisTargOri,
-                                'behRespTrial': behRespTrial, 'targXoff': targXoff, 'targYoff': targYoff,
-                                'targV': targV, 'targTtot': targTtot, 'targTpeak': targTpeak,
-                                'trialT': trialT, 'nFrames': nFrames, 'fixCross': [fixCross]})
-                # to preserve the column order:
-                dataCols = ['expName', 'time', 'participant', 'session', 'trialN', 'maskSz', 'maskSf',
-                            'maskBv', 'maskBsf', 'maskPeriFade', 'targSz', 'targSf', 'thisTargOri',
-                            'behRespTrial', 'targXoff', 'targYoff', 'targV',
-                            'targTtot', 'targTpeak', 'trialT', 'nFrames', 'fixCross']
-                if nDone == 1:
-                    df = dT
-                else:
-                    df = pd.concat([df,dT])
-                # Recording the data to a csv file:
-                df.to_csv(dataFileName, index=False, columns=dataCols)
-                print 'wrote the data set to ' + dataFileName
-                print 'spacebar pressed - continuing to the next trial'
-                pauseTextL.setAutoDraw(False)
-                pauseTextR.setAutoDraw(False)
+        #------prepare to start routine "trial"-------
+        t = 0
+        trialClock.reset()  # clock 
+        frameN = -1
 
-        # *ISI* period
-        if ISI.status == NOT_STARTED and t>=trialT and keyPause:
-            # keep track of start time/frame for later
-            ISI.tStart = t  # underestimates by a little under one frame
-            ISI.frameNStart = frameN  # exact frame index
-            fixL.setAutoDraw(True)
-            fixR.setAutoDraw(True)
-            ISI.start(ISIduration)
-        #one frame should pass before updating params and completing
-        elif ISI.status == STARTED and t >= (ISI.tStart + ISIduration): 
-            fixL.setAutoDraw(False)
-            fixR.setAutoDraw(False)
-            ISI.complete() #finish the static period
-            continueRoutine = False
-        
-        # check if all components have finished
-        # a component has requested a forced-end of Routine:
-        if not continueRoutine: 
-            # if we abort early the non-slip timer needs reset:
-            routineTimer.reset() 
-            break
-        # will revert to True if at least one component still running
-        continueRoutine = False  
+        # anchors:
+        elStopped = False
+        keyPause = False
+        targRespGiven = False
+        behRespRecorded = False
+
+        # update component parameters for each repeat
+        key_arrow = event.BuilderKeyResponse()  # create an object of type keyresponse
+        key_arrow.status = NOT_STARTED
+        # keep track of which components have finished
+        trialComponents = []
+        trialComponents.append(winL)
+        trialComponents.append(winR)
+        trialComponents.append(pauseTextL)
+        trialComponents.append(pauseTextR)
+        trialComponents.append(fixL)
+        trialComponents.append(fixR)
+        trialComponents.append(key_arrow)
+        trialComponents.append(ISI)
         for thisComponent in trialComponents:
-            if hasattr(thisComponent, "status") and \
-                    thisComponent.status != FINISHED:
-                continueRoutine = True
-                break  # at least one component has not yet finished
+            if hasattr(thisComponent, 'status'):
+                thisComponent.status = NOT_STARTED
         
-        # check for quit (the Esc key)
-        if endExpNow or event.getKeys(keyList=["escape"]):
-            print np.shape(behResp)
-            if et:
-                elEndRec(el)
-            core.quit()
+        # ////////////////////////////////////////////////////////////////////////////////
+        if et:
+            el.sendMessage("TRIALID " + str(nDone))
+            trialStartStr = datetime.now().strftime('%Y-%m-%d_%H%M%S')
+            el.sendMessage("TIMESTAMP " + trialStartStr)
+            el.setOfflineMode()
+            pl.msecDelay(50) 
+            error = el.startRecording(1,1,1,1)
+        # ////////////////////////////////////////////////////////////////////////////////
         
-        # refresh the screen
-        # don't flip if this routine is over or we'll get a blank screen
-        if continueRoutine:  
-            win.flip()
-        else: # this Routine was not non-slip safe so reset non-slip timer
-            routineTimer.reset()
-    
-    #-------Ending Routine "trial"-------
-    for thisComponent in trialComponents:
-        if hasattr(thisComponent, "setAutoDraw"):
-            thisComponent.setAutoDraw(False)
+        #-------Start Routine "trial"-------
+        continueRoutine = True
+        while continueRoutine:
+            # get current time
+            t = trialClock.getTime()
+            frameN = frameN + 1 # number of completed frames (0 is the first frame)
+            # update/draw components on each frame
+            
+            # *winL* updates
+            if winL.status == NOT_STARTED:
+                # keep track of start time/frame for later
+                winL.tStart = t  # underestimates by a little under one frame
+                winL.frameNStart = frameN  # exact frame index
+                winL.setAutoDraw(True)
+                winL.status = STARTED
+            
+            # *winR* updates
+            if winR.status == NOT_STARTED:
+                # keep track of start time/frame for later
+                winR.tStart = t  # underestimates by a little under one frame
+                winR.frameNStart = frameN  # exact frame index
+                winR.setAutoDraw(True)
+                winR.status = STARTED
+
+            if trialNfb:
+                trialNfbText.draw()
+
+            # mcMask and targ presentation:
+            if t < trialT:
+                # mcMask:
+                mcMask = visual.GratingStim(win, tex=grt[:,:,frameN%nFrames], 
+                    size=(grtSize,grtSize), pos=[winOffX, winOffY], 
+                    interpolate=False, mask=mcPeriMask)
+                mcMask.draw()
+                # target presentation:
+                if t > targTstart and t < targTpeak:
+                    targGab.opacity = sigmoidMod((t-targTstart)*2/targTtot)*thisContr
+                elif t > targTpeak and t < targTend:
+                    targGab.opacity = sigmoidMod((targTend-t)*2/targTtot)*thisContr
+                else:
+                    targGab.opacity = 0
+                targGab.draw()
+                
+                # drawing the fixation cross, if any:
+                if fixCross:
+                    fixL.draw()
+                    fixR.draw()
+            
+            # *key_arrow* updates for target reponses:
+            if key_arrow.status == NOT_STARTED:
+                # keep track of start time/frame for later
+                key_arrow.tStart = t  # underestimates by a little under one frame
+                key_arrow.frameNStart = frameN  # exact frame index
+                key_arrow.status = STARTED
+                # keyboard checking is just starting
+                key_arrow.clock.reset()  # now t=0
+                event.clearEvents(eventType='keyboard')
+                kb_device.clearEvents()
+            # registering response at throughout the trial
+            if key_arrow.status == STARTED:
+                theseKeys = event.getKeys(keyList=['left','right'])
+                if len(theseKeys) > 0:
+                    if 'left' in theseKeys:
+                        print 'response: left tilt'
+                        behRespTrial = targOri1 # the first number is negative
+                        targRespGiven = True
+                    elif 'right' in theseKeys:
+                        print 'response: right tilt'
+                        behRespTrial = targOri2 # the second number is positive
+                        targRespGiven = True
+                    if targRespGiven:
+                        if behRespTrial == thisTargOri: corrResp = 1
+                        else: corrResp = 0
+
+            if t > trialT and not elStopped:
+                # stopping eye-tracking recording:
+                if et:
+                    elEndRec(el)
+                    elStopped = True
+
+            # pause text and data exporting
+            if targRespGiven and not keyPause and t>trialT:
+                pauseTextL.draw()
+                pauseTextR.draw()
+                if 'space' in event.getKeys(keyList=['space']):
+                    keyPause = True
+                    # only update the response upon pressing 'space':
+                    if corrResp: print 'correct'
+                    else: print 'incorrect'
+                    thisStair.addResponse(corrResp) 
+                    #print 'spacebar pressed'
+                    pauseTextL.setAutoDraw(False)
+                    pauseTextR.setAutoDraw(False)
+
+            # *ISI* period
+            if ISI.status == NOT_STARTED and t>=trialT and keyPause:
+                # keep track of start time/frame for later
+                ISI.tStart = t  # underestimates by a little under one frame
+                ISI.frameNStart = frameN  # exact frame index
+                fixL.setAutoDraw(True)
+                fixR.setAutoDraw(True)
+                ISI.start(ISIduration)
+            #one frame should pass before updating params and completing
+            elif ISI.status == STARTED and t >= (ISI.tStart + ISIduration): 
+                fixL.setAutoDraw(False)
+                fixR.setAutoDraw(False)
+                ISI.complete() #finish the static period
+                continueRoutine = False
+            
+            # check if all components have finished
+            # a component has requested a forced-end of Routine:
+            if not continueRoutine: 
+                # if we abort early the non-slip timer needs reset:
+                routineTimer.reset() 
+                break
+            # will revert to True if at least one component still running
+            continueRoutine = False  
+            for thisComponent in trialComponents:
+                if hasattr(thisComponent, "status") and \
+                        thisComponent.status != FINISHED:
+                    continueRoutine = True
+                    break  # at least one component has not yet finished
+            
+            # check for quit (the Esc key)
+            if endExpNow or event.getKeys(keyList=["escape"]):
+                print np.shape(behResp)
+                if et:
+                    elEndRec(el)
+                core.quit()
+            
+            # refresh the screen
+            # don't flip if this routine is over or we'll get a blank screen
+            if continueRoutine:  
+                win.flip()
+            else: # this Routine was not non-slip safe so reset non-slip timer
+                routineTimer.reset()
+        
+        #-------Ending Routine "trial"-------
+        for thisComponent in trialComponents:
+            if hasattr(thisComponent, "setAutoDraw"):
+                thisComponent.setAutoDraw(False)
 
     # thisExp.nextEntry()
 
-# trialsFilePath = filePath + os.sep + fileName + '_trials'
-# trials.saveAsPickle(trialsFilePath)
-# trials.saveAsText(trialsFilePath)
-# print trials
+nStairsDone = 0
+for thisStair in stairs:
+    nStairsDone += 1
+    stairFileName = filePath + os.sep + thisStair.extraInfo['label']
+    print thisStair.mean()
+    thisStair.saveAsPickle(stairFileName)
+    thisStair.saveAsText(stairFileName)
+    mcPeriFade = thisStair.extraInfo['mcPeriFade']
+    mcPeriGap = np.int(thisStair.extraInfo['mcSz']/2-mcPeriFade)
+    # have the information recorded in a csv file as well:
+    dT = pd.DataFrame({'expName': expName, 'time': expInfo['time'],
+                       'participant': expInfo['participant'],
+                       'session': expInfo['session'],
+                       'nTrials': nTrials,
+                       'mcSz': thisStair.extraInfo['mcSz'],
+                       'mcSf': thisStair.extraInfo['mcSf'],
+                       'mcBv': thisStair.extraInfo['mcBv'],
+                       'mcBsf': thisStair.extraInfo['mcBsf'],
+                       'mcPeriGap': mcPeriGap,
+                       'mcPeriFade': mcPeriFade,
+                       'targSz': thisStair.extraInfo['targSz'],
+                       'targSf': thisStair.extraInfo['targSf'],
+                       'targOri1': thisStair.extraInfo['targOri1'],
+                       'targOri2': thisStair.extraInfo['targOri2'],
+                       'targXoff': thisStair.extraInfo['targXoff'],
+                       'targYoff': thisStair.extraInfo['targYoff'],
+                       'targV': thisStair.extraInfo['targV'],
+                       'targTtot': thisStair.extraInfo['targTtot'],
+                       'targTpeak': thisStair.extraInfo['targTpeak'],
+                       'trialT': thisStair.extraInfo['trialT'],
+                       'fixCross': thisStair.extraInfo['fixCross'],
+                       'stairLabel': thisStair.extraInfo['label'],
+                       'stairStart': thisStair.extraInfo['startContr'],
+                       'stairMean': [thisStair.mean()]})
+    # to preserve the column order:
+    dataCols = ['expName', 'time', 'participant', 'session', 'nTrials',
+                'mcSz', 'mcSf', 'mcBv', 'mcBsf', 'mcPeriGap', 'mcPeriFade', 
+                'targSz', 'targSf', 'targOri1', 'targOri2', 'targXoff',
+                'targYoff', 'targV', 'targTtot', 'targTpeak', 'trialT',
+                'fixCross', 'stairLabel', 'stairStart', 'stairMean']
+    if nStairsDone == 1: df = dT
+    else: df = pd.concat([df,dT])
+# Recording the data to a csv file:
+df.to_csv(dataFileName, index=False, columns=dataCols)
+print 'wrote the data set to ' + dataFileName
 
 if et:
     # File transfer and cleanup!
