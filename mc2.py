@@ -251,7 +251,7 @@ winL = visual.Polygon(win, edges=36, size=[winSz, winSz], pos=posCentL,
 winR = visual.Polygon(win, edges=36, size=[winSz, winSz], pos=posCentR,
                       lineWidth=winThickness, lineColor='white')
 # target gabor
-gab = visual.GratingStim(win, tex='sin', mask='circle', size=[winSz, winSz],
+targGab = visual.GratingStim(win, tex='sin', mask='circle', size=[winSz, winSz],
                       pos=posCentL)
 # fixation:
 fixL = visual.ShapeStim(win, pos=posCentL, vertices=((0,-fixSz), (0,fixSz), (0,0), 
@@ -323,6 +323,9 @@ dataFileName = filePath + os.sep + fileName + '.csv'
 
 def sigmoid(x):
     return 1 / (1 + np.exp(-x))
+
+def sigmoidMod(x): # modified such that 0->0, 1->1
+    return 1 / (1 + np.exp(-x*10+5))
 
 x = np.arange(-grtSize/2,grtSize/2)
 y = np.arange(-grtSize/2,grtSize/2)
@@ -431,21 +434,25 @@ for thisTrial in trials:
         thisTargOri = allTargOris[np.random.randint(2)]
 
     # Setting up the target with the above characteristics:
-    gab.size = targSz
-    gab.sf = targSf
-    gab.pos = gab.pos + np.array([targXoff, targYoff])
-    gab.ori = thisTargOri
+    targGab.size = targSz
+    targGab.sf = targSf
+    targGab.pos = targGab.pos + np.array([targXoff, targYoff])
+    targGab.ori = thisTargOri
 
     # Temporal variables:
     targTtot = thisTrial['targTtot']
     targTpeak = thisTrial['targTpeak']
+    print targTpeak
+    targTstart = targTpeak-(targTtot/2)
+    targTend = targTpeak+(targTtot/2)
+    maxContr = 1
     trialT = thisTrial['trialT'] # -win.monitorFramePeriod*0.75
 
     # view setup: fade, gap, and fixation cross
     fixCross = thisTrial['fixCross']
     periFade = thisTrial['maskPeriFade']
     periGap = np.int(maskSz / 2 - periFade)
-    print 'periFade=' + str(periFade) + '; periGap=' + str(periGap)
+    #print 'periFade=' + str(periFade) + '; periGap=' + str(periGap)
 
     nFrames = 60 # number of frames per sequence
     
@@ -459,7 +466,7 @@ for thisTrial in trials:
             '_sz' + str(maskSz) + '.npy')
 
     # creating a mask, which is fixed for a given trial:
-    maskPeriMask = periMask(periGap, periFade)
+    mcPeriMask = periMask(periGap, periFade)
 
     #------prepare to start routine "trial"-------
     t = 0
@@ -531,13 +538,18 @@ for thisTrial in trials:
             # mcMask:
             mcMask = visual.GratingStim(win, tex=grt[:,:,frameN%nFrames], 
                 size=(grtSize,grtSize), pos=[winOffX, winOffY], 
-                interpolate=False, mask=maskPeriMask)
+                interpolate=False, mask=mcPeriMask)
             mcMask.draw()
-            # Target:
-            gab.opacity = 1
-            gab.draw()
+            # target presentation:
+            if t > targTstart and t < targTpeak:
+                targGab.opacity = sigmoidMod((t-targTstart)*2/targTtot)*maxContr
+            elif t > targTpeak and t < targTend:
+                targGab.opacity = sigmoidMod((targTend-t)*2/targTtot)*maxContr
+            else:
+                targGab.opacity = 0
+            targGab.draw()
             
-            # Drawing the fixation cross, if any:
+            # drawing the fixation cross, if any:
             if fixCross:
                 fixL.draw()
                 fixR.draw()
