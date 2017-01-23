@@ -300,8 +300,8 @@ for thisCond in condList:
     nTrials = thisCond['trialN']
     thisStair = data.QuestHandler(startVal = thisInfo['startContr'],
                                   extraInfo = thisInfo,
-                                  startValSd = 1, pThreshold = .63,
-                                  gamma = 0.01, nTrials = nTrials, maxVal=0)
+                                  startValSd = 2, pThreshold = .82,
+                                  gamma = 0.5, nTrials = nTrials, maxVal=0)
     stairs.append(thisStair)
 
 # An empty data set for storing behavioural responses:
@@ -428,17 +428,22 @@ for trialN in range(nTrials):
         targYoff = thisStair.extraInfo['targYoff']
         targV = thisStair.extraInfo['targV']
 
-        # Target response criteria:
+        # Random target features: orientation and location:
         targOri1 = thisStair.extraInfo['targOri1']
         targOri2 = thisStair.extraInfo['targOri2']
         if not targOri1 == targOri2: # if the two targ oris are not the same, decided randomly
             allTargOris = np.array([targOri1, targOri2])
             thisTargOri = allTargOris[np.random.randint(2)]
+        targXoff1 = thisStair.extraInfo['targXoff1']
+        targXoff2 = thisStair.extraInfo['targXoff2']
+        if not targXoff1 == targXoff2: # if the two targ oris are not the same, decided randomly
+            allTargXoffs = np.array([targXoff1, targXoff2])
+            thisTargXoff = allTargXoffs[np.random.randint(2)]
 
         # Setting up the target with the above characteristics:
         targGab.size = targSz
         targGab.sf = targSf
-        targGab.pos = targGab.pos + np.array([targXoff, targYoff])
+        targGab.pos = targGab.pos + np.array([thisTargXoff, targYoff])
         targGab.ori = thisTargOri
 
         # Temporal variables:
@@ -543,6 +548,10 @@ for trialN in range(nTrials):
                     size=(grtSize,grtSize), pos=[winOffX, winOffY], 
                     interpolate=False, mask=mcPeriMask)
                 mcMask.draw()
+                # drawing the fixation cross, if any:
+                if fixCross:
+                    fixL.draw()
+                    fixR.draw()
                 # target presentation:
                 if t > targTstart and t < targTpeak:
                     targGab.opacity = sigmoidMod((t-targTstart)*2/targTtot)*10**thisContr
@@ -551,11 +560,6 @@ for trialN in range(nTrials):
                 else:
                     targGab.opacity = 0
                 targGab.draw()
-                
-                # drawing the fixation cross, if any:
-                if fixCross:
-                    fixL.draw()
-                    fixR.draw()
             
             # *key_arrow* updates for target reponses:
             if key_arrow.status == NOT_STARTED:
@@ -572,15 +576,16 @@ for trialN in range(nTrials):
                 theseKeys = event.getKeys(keyList=['left','right'])
                 if len(theseKeys) > 0:
                     if 'left' in theseKeys:
-                        print 'response: left tilt'
-                        behRespTrial = targOri1 # the first number is negative
+                        print 'response: left'
+                        behRespTrial = targXoff1 # the first number is negative
                         targRespGiven = True
                     elif 'right' in theseKeys:
-                        print 'response: right tilt'
-                        behRespTrial = targOri2 # the second number is positive
+                        print 'response: right'
+                        behRespTrial = targXoff2 # the second number is positive
                         targRespGiven = True
                     if targRespGiven:
-                        if behRespTrial == thisTargOri: corrResp = 1
+                        rt = t - targTstart
+                        if behRespTrial == thisTargXoff: corrResp = 1
                         else: corrResp = 0
 
             if t > trialT and not elStopped:
@@ -599,6 +604,9 @@ for trialN in range(nTrials):
                     if corrResp: print 'correct'
                     else: print 'incorrect'
                     thisStair.addResponse(corrResp) 
+                    thisStair.addOtherData('rt',rt)
+                    thisStair.addOtherData('targOri',thisTargOri)
+                    thisStair.addOtherData('targXoff',thisTargXoff)
                     #print 'spacebar pressed'
                     pauseTextL.setAutoDraw(False)
                     pauseTextR.setAutoDraw(False)
@@ -677,7 +685,8 @@ for thisStair in stairs:
                        'targSf': thisStair.extraInfo['targSf'],
                        'targOri1': thisStair.extraInfo['targOri1'],
                        'targOri2': thisStair.extraInfo['targOri2'],
-                       'targXoff': thisStair.extraInfo['targXoff'],
+                       'targXoff1': thisStair.extraInfo['targXoff1'],
+                       'targXoff2': thisStair.extraInfo['targXoff2'],
                        'targYoff': thisStair.extraInfo['targYoff'],
                        'targV': thisStair.extraInfo['targV'],
                        'targTtot': thisStair.extraInfo['targTtot'],
@@ -690,7 +699,7 @@ for thisStair in stairs:
     # to preserve the column order:
     dataCols = ['expName', 'time', 'participant', 'session', 'nTrials',
                 'mcSz', 'mcSf', 'mcBv', 'mcBsf', 'mcPeriGap', 'mcPeriFade', 
-                'targSz', 'targSf', 'targOri1', 'targOri2', 'targXoff',
+                'targSz', 'targSf', 'targOri1', 'targOri2', 'targXoff1', 'targXoff2',
                 'targYoff', 'targV', 'targTtot', 'targTpeak', 'trialT',
                 'fixCross', 'stairLabel', 'stairStart', 'stairMean']
     if nStairsDone == 1: df = dT
