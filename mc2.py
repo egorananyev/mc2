@@ -25,7 +25,7 @@ _thisDir = os.path.dirname(os.path.abspath(__file__))
 # ====================================================================================
 ## Initial variables.
 et = 0
-expName = 'mc2_tgT-mcBv'
+expName = 'mc2_tgT-mcBv' # can be overwritten through GUI
 # Window circles (specified in degrees of visual angles [dva]):
 #winSz = 7.2 # 5.03; calculated as 5/x=sqrt(2)/2 => x=10/sqrt(2)
 winOffX = 4.25 # 6 # 5.62
@@ -148,8 +148,8 @@ if et:
 
 # ====================================================================================
 # Store info about the experiment session
-expInfo = {u'session': u'', u'participant': u''}
-dlg = gui.DlgFromDict(dictionary=expInfo, title=expName) # dialogue box
+expInfo = {u'session': u'', u'participant': u'', u'experiment': expName}
+dlg = gui.DlgFromDict(dictionary=expInfo, title='mc2') # dialogue box
 if dlg.OK == False: core.quit()  # user pressed cancel
 timeNow = datetime.now()
 expInfo['time'] = datetime.now().strftime('%Y-%m-%d_%H%M')
@@ -300,9 +300,8 @@ for thisCond in condList:
     nTrials = thisCond['trialN']
     thisStair = data.QuestHandler(startVal = thisInfo['startContr'],
                                   extraInfo = thisInfo,
-                                  startValSd = .2, pThreshold = .63,
-                                  gamma = 0.01, nTrials = nTrials,
-                                  minVal=0, maxVal=1)
+                                  startValSd = 1, pThreshold = .63,
+                                  gamma = 0.01, nTrials = nTrials, maxVal=0)
     stairs.append(thisStair)
 
 # An empty data set for storing behavioural responses:
@@ -546,9 +545,9 @@ for trialN in range(nTrials):
                 mcMask.draw()
                 # target presentation:
                 if t > targTstart and t < targTpeak:
-                    targGab.opacity = sigmoidMod((t-targTstart)*2/targTtot)*thisContr
+                    targGab.opacity = sigmoidMod((t-targTstart)*2/targTtot)*10**thisContr
                 elif t > targTpeak and t < targTend:
-                    targGab.opacity = sigmoidMod((targTend-t)*2/targTtot)*thisContr
+                    targGab.opacity = sigmoidMod((targTend-t)*2/targTtot)*10**thisContr
                 else:
                     targGab.opacity = 0
                 targGab.draw()
