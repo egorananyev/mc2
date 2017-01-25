@@ -301,13 +301,9 @@ for thisCond in condList:
     thisInfo['label'] = stairLabel
     nTrials = thisCond['trialN']
     thisStair = data.QuestHandler(startVal = thisInfo['startContr'],
-                                  extraInfo = thisInfo, stopInterval=0.05,
+                                  extraInfo = thisInfo,
                                   startValSd = 2, pThreshold = .82,
                                   gamma = 0.5, nTrials = nTrials, maxVal=0)
-    #thisStair = data.QuestHandler(startVal = thisInfo['startContr'],
-    #                              extraInfo = thisInfo,
-    #                              startValSd = 1, pThreshold = .63,
-    #                              gamma = 0.01, nTrials = nTrials, maxVal=0)
     stairs.append(thisStair)
 
 # An empty data set for storing behavioural responses:
