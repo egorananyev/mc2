@@ -448,7 +448,7 @@ for trialN in range(nTrials):
         # Setting up the target with the above characteristics:
         targGab.size = targSz
         targGab.sf = targSf
-        targGab.pos = targGab.pos + np.array([thisTargXoff, targYoff])
+        targGab.pos = posCentL + np.array([thisTargXoff, targYoff])
         targGab.ori = thisTargOri
 
         # Temporal variables:
@@ -458,8 +458,10 @@ for trialN in range(nTrials):
         targTend = targTpeak+(targTtot/2)
         trialT = thisStair.extraInfo['trialT'] # -win.monitorFramePeriod*0.75
         
-        print 'TRIAL' + '\t' + 'CONTRAST' + '\t\t' + 'mcBv' + '\t' + 'targOri' + '\t' + 'targTpeak'
-        print trialNstr + '\t' + contrStr + '\t' + str(mcBv) + '\t' + str(thisTargOri) + '\t' + str(targTpeak)
+        print 'TRIAL' + '\t' + 'CONTRAST' + '\t\t' + 'mcBv' + '\t' + 'targTpeak' + \
+              '\t' + 'targOri' + '\t' + 'targXoff'
+        print trialNstr + '\t' + contrStr + '\t' + str(mcBv) + '\t' + str(targTpeak) + \
+              '\t' + str(thisTargOri) + '\t' + str(thisTargXoff)
 
         # view setup: fade, gap, and fixation cross
         fixCross = thisStair.extraInfo['fixCross']

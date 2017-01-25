@@ -1,3 +1,1 @@
-startContr,mcSz,mcSf,mcBv,mcBsf,mcPeriFade,targSz,targSf,targOri1,targOri2,targXoff1,targXoff2,targYoff,targV,targTtot,targTpeak,fixCross,trialT,trialN
--1,256,0.1,0.01,0.05,16,32,0.1,-90,0,-48,48,0,0,1,0.5,0,2,2
--2,256,0.1,0.01,0.05,16,32,0.1,-90,0,-48,48,0,0,1,0.5,0,2,2
+startContr,mcSz,mcSf,mcBv,mcBsf,mcPeriFade,targSz,targSf,targOri1,targOri2,targXoff1,targXoff2,targYoff,targV,targTtot,targTpeak,fixCross,trialT,trialN-1,256,0.1,0.01,0.05,16,32,0.1,0,0,-48,48,0,0,1,0.5,0,2,2-2,256,0.1,0.01,0.05,16,32,0.1,0,0,-48,48,0,0,1,0.5,0,2,2
