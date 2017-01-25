@@ -6,15 +6,17 @@ Motion Clouds: SF Bandwidth (B_sf)
 
 from __future__ import division  # so that 1/3=0.333 instead of 1/3=0
 from psychopy import visual, core, data, event, gui
+#from psychopy import gui
 from psychopy.constants import *  # things like STARTED, FINISHED
 import numpy as np
 import pandas as pd
 from datetime import datetime
 import os, shutil, itertools, copy  # handy system and path functions
-#import pyglet
+import pyglet
 #import MotionClouds as mc
 
-#Initiating the keyboard
+
+# Initiating the keyboard
 from psychopy.iohub import launchHubServer
 io = launchHubServer()
 kb_device = io.devices.keyboard
