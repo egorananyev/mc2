@@ -298,10 +298,14 @@ for thisCond in condList:
                  '_targTpeak-' + str(thisCond['targTpeak'])
     thisInfo['label'] = stairLabel
     nTrials = thisCond['trialN']
+    #thisStair = data.QuestHandler(startVal = thisInfo['startContr'],
+    #                              extraInfo = thisInfo,
+    #                              startValSd = 2, pThreshold = .82,
+    #                              gamma = 0.5, nTrials = nTrials, maxVal=0)
     thisStair = data.QuestHandler(startVal = thisInfo['startContr'],
                                   extraInfo = thisInfo,
-                                  startValSd = 2, pThreshold = .82,
-                                  gamma = 0.5, nTrials = nTrials, maxVal=0)
+                                  startValSd = 1, pThreshold = .63,
+                                  gamma = 0.01, nTrials = nTrials, maxVal=0)
     stairs.append(thisStair)
 
 # An empty data set for storing behavioural responses:
@@ -424,7 +428,6 @@ for trialN in range(nTrials):
         # target:
         targSz = thisStair.extraInfo['targSz']
         targSf = thisStair.extraInfo['targSf']
-        targXoff = thisStair.extraInfo['targXoff']
         targYoff = thisStair.extraInfo['targYoff']
         targV = thisStair.extraInfo['targV']
 
@@ -603,7 +606,8 @@ for trialN in range(nTrials):
                     # only update the response upon pressing 'space':
                     if corrResp: print 'correct'
                     else: print 'incorrect'
-                    thisStair.addResponse(corrResp) 
+                    print corrResp
+                    thisStair.addResponse(corrResp)
                     thisStair.addOtherData('rt',rt)
                     thisStair.addOtherData('targOri',thisTargOri)
                     thisStair.addOtherData('targXoff',thisTargXoff)
