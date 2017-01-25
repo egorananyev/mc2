@@ -27,7 +27,7 @@ _thisDir = os.path.dirname(os.path.abspath(__file__))
 # ====================================================================================
 ## Initial variables.
 et = 0
-expName = 'mc2_tgT-mcBv' # can be overwritten through GUI
+expName = 'mc2_tgT-mcBv_test' # can be overwritten through GUI
 # Window circles (specified in degrees of visual angles [dva]):
 #winSz = 7.2 # 5.03; calculated as 5/x=sqrt(2)/2 => x=10/sqrt(2)
 winOffX = 4.25 # 6 # 5.62
@@ -296,20 +296,16 @@ condList = data.importConditions(conditionsFilePath)
 stairs = []
 for thisCond in condList:
     thisInfo = copy.copy(thisCond)
-    stairLabel = 'st-' + str(thisCond['startContr']) + \
-                 '_mcBv-' + str(thisCond['mcBv']) + \
-                 '_targTpeak-' + str(thisCond['targTpeak'])
+    stairLabel = 'st' + str(thisCond['startContr']) + \
+                 '_mcBv' + str(thisCond['mcBv']) + \
+                 '_targTpeak' + str(thisCond['targTpeak'])
     thisInfo['label'] = stairLabel
-    nTrials = thisCond['trialN']
-    #thisStair = data.QuestHandler(startVal = thisInfo['startContr'],
-    #                              extraInfo = thisInfo,
-    #                              startValSd = 2, pThreshold = .82,
-    #                              gamma = 0.5, nTrials = nTrials, maxVal=0)
     thisStair = data.StairHandler(startVal = thisInfo['startContr'],
                                   extraInfo = thisInfo, maxVal=0,
                                   nReversals = thisInfo['nRevs'],
                                   nUp = 1, nDown = 2, stepType='lin',
-                                  stepSizes = contrSteps[0:thisInfo['nRevs']+1)
+                                  stepSizes = contrSteps[0:thisInfo['nRevs']],
+                                  name = stairLabel)
     stairs.append(thisStair)
 
 # An empty data set for storing behavioural responses:
@@ -327,7 +323,6 @@ dataFileName = filePath + os.sep + fileName + '.csv'
 
 def writeStair(thisStair, filePath):
     stairFileName = filePath + os.sep + thisStair.extraInfo['label']
-    print 'stair ' + thisStair.extraInfo['label'] + ' mean is %.2f' %(thisStair.mean())
     thisStair.saveAsPickle(stairFileName)
     thisStair.saveAsText(stairFileName)
 
@@ -338,7 +333,7 @@ def dfStair(thisStair, expName):
     dT = pd.DataFrame({'expName': expName, 'time': expInfo['time'],
                        'participant': expInfo['participant'],
                        'session': expInfo['session'],
-                       'nTrials': nTrials,
+                       'nRevs': thisStair.extraInfo['nRevs'],
                        'mcSz': thisStair.extraInfo['mcSz'],
                        'mcSf': thisStair.extraInfo['mcSf'],
                        'mcBv': thisStair.extraInfo['mcBv'],
@@ -358,14 +353,7 @@ def dfStair(thisStair, expName):
                        'trialT': thisStair.extraInfo['trialT'],
                        'fixCross': thisStair.extraInfo['fixCross'],
                        'stairLabel': thisStair.extraInfo['label'],
-                       'stairStart': thisStair.extraInfo['startContr'],
-                       'stairMean': [thisStair.mean()]})
-    # to preserve the column order:
-    dataCols = ['expName', 'time', 'participant', 'session', 'nTrials',
-                'mcSz', 'mcSf', 'mcBv', 'mcBsf', 'mcPeriGap', 'mcPeriFade', 
-                'targSz', 'targSf', 'targOri1', 'targOri2', 'targXoff1', 'targXoff2',
-                'targYoff', 'targV', 'targTtot', 'targTpeak', 'trialT',
-                'fixCross', 'stairLabel', 'stairStart', 'stairMean']
+                       'stairStart': [thisStair.extraInfo['startContr']]})
     return dT
 
 def sigmoid(x):
@@ -455,27 +443,32 @@ nStairsDone = 0
 while len(stairs)>0:
     np.random.shuffle(stairs)
     thisStair = stairs.pop()
+
     try:
         # current contrast:
         thisContr = thisStair.next() # contrast value
         contrStr = 'start=%.1f, cur=%.2f' %(thisStair.extraInfo['startContr'], thisContr)
+
     except StopIteration:
         print '-------------------------------------------------'
         nStairsDone += 1
-        print 'finished staircase'
-        writeStair(thisStair, filePath)
-        print 'reversals:'
+        print 'finished staircase ' + thisStair.extraInfo['label']
+        print 'meanRev6 = %.3f' %(np.average(thisStair.reversalIntensities[-6:]))
         print thisStair.reversalIntensities
-        print 'mean of final 6 reversals = %.3f' \
-                %(np.average(thisStair.reversalIntensities[-6:]))
+        writeStair(thisStair, filePath)
         if nStairsDone == 1: df = dfStair(thisStair, expName)
         else: df = pd.concat([df, dfStair(thisStair, expName)])
         # Recording the data to a csv file:
+        dataCols = ['expName', 'time', 'participant', 'session', 'nRevs',
+                    'mcSz', 'mcSf', 'mcBv', 'mcBsf', 'mcPeriGap', 'mcPeriFade', 
+                    'targSz', 'targSf', 'targOri1', 'targOri2', 'targXoff1', 'targXoff2',
+                    'targYoff', 'targV', 'targTtot', 'targTpeak', 'trialT',
+                    'fixCross', 'stairLabel', 'stairStart', 'stairMean']
         df.to_csv(dataFileName, index=False, columns=dataCols)
         print 'wrote the data set to ' + dataFileName
         print '-------------------------------------------------'
-    else:
 
+    else:
         nTrialsDone  += 1
         if trialNfb:
             trialNfbText.text = str(nTrialsDone )
@@ -518,7 +511,7 @@ while len(stairs)>0:
         targTend = targTpeak+(targTtot/2)
         trialT = thisStair.extraInfo['trialT'] # -win.monitorFramePeriod*0.75
         
-        print 'TRIAL' + '\t' + 'CONTRAST' + '\t\t' + 'mcBv' + '\t' + 'targTpeak' + \
+        print 'TRIAL' + '\t' + 'CONTRAST' + '\t\t' + 'mcBv' + '\t' + 'targT' + \
               '\t' + 'targOri' + '\t' + 'targXoff'
         print trialNstr + '\t' + contrStr + '\t' + str(mcBv) + '\t' + str(targTpeak) + \
               '\t' + str(thisTargOri) + '\t' + str(thisTargXoff)
@@ -670,11 +663,11 @@ while len(stairs)>0:
                     # only update the response upon pressing 'space':
                     if corrResp: print 'correct'
                     else: print 'incorrect'
-                    print corrResp
                     thisStair.addResponse(corrResp)
                     thisStair.addOtherData('rt',rt)
                     thisStair.addOtherData('targOri',thisTargOri)
                     thisStair.addOtherData('targXoff',thisTargXoff)
+                    stairs.append(thisStair)
                     #print 'spacebar pressed'
                     pauseTextL.setAutoDraw(False)
                     pauseTextR.setAutoDraw(False)
