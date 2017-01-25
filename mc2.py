@@ -300,14 +300,14 @@ for thisCond in condList:
                  '_targTpeak-' + str(thisCond['targTpeak'])
     thisInfo['label'] = stairLabel
     nTrials = thisCond['trialN']
+    thisStair = data.QuestHandler(startVal = thisInfo['startContr'],
+                                  extraInfo = thisInfo, stopInterval=0.05,
+                                  startValSd = 2, pThreshold = .82,
+                                  gamma = 0.5, nTrials = nTrials, maxVal=0)
     #thisStair = data.QuestHandler(startVal = thisInfo['startContr'],
     #                              extraInfo = thisInfo,
-    #                              startValSd = 2, pThreshold = .82,
-    #                              gamma = 0.5, nTrials = nTrials, maxVal=0)
-    thisStair = data.QuestHandler(startVal = thisInfo['startContr'],
-                                  extraInfo = thisInfo,
-                                  startValSd = 1, pThreshold = .63,
-                                  gamma = 0.01, nTrials = nTrials, maxVal=0)
+    #                              startValSd = 1, pThreshold = .63,
+    #                              gamma = 0.01, nTrials = nTrials, maxVal=0)
     stairs.append(thisStair)
 
 # An empty data set for storing behavioural responses:
@@ -436,20 +436,18 @@ for trialN in range(nTrials):
         # Random target features: orientation and location:
         targOri1 = thisStair.extraInfo['targOri1']
         targOri2 = thisStair.extraInfo['targOri2']
-        if not targOri1 == targOri2: # if the two targ oris are not the same, decided randomly
-            allTargOris = np.array([targOri1, targOri2])
-            thisTargOri = allTargOris[np.random.randint(2)]
+        allTargOris = np.array([targOri1, targOri2])
+        thisTargOri = allTargOris[np.random.randint(2)]
         targXoff1 = thisStair.extraInfo['targXoff1']
         targXoff2 = thisStair.extraInfo['targXoff2']
-        if not targXoff1 == targXoff2: # if the two targ oris are not the same, decided randomly
-            allTargXoffs = np.array([targXoff1, targXoff2])
-            thisTargXoff = allTargXoffs[np.random.randint(2)]
+        allTargXoffs = np.array([targXoff1, targXoff2])
+        thisTargXoff = allTargXoffs[np.random.randint(2)]
 
         # Setting up the target with the above characteristics:
         targGab.size = targSz
         targGab.sf = targSf
         targGab.pos = posCentL + np.array([thisTargXoff, targYoff])
-        targGab.ori = thisTargOri
+        targGab.ori = thisTargOri + 90 # since, by default, 0 deg results in vert
 
         # Temporal variables:
         targTtot = thisStair.extraInfo['targTtot']
@@ -673,7 +671,7 @@ nStairsDone = 0
 for thisStair in stairs:
     nStairsDone += 1
     stairFileName = filePath + os.sep + thisStair.extraInfo['label']
-    print thisStair.mean()
+    print 'stair ' + thisStair.extraInfo['label'] + ' mean is %.2f' %(thisStair.mean())
     thisStair.saveAsPickle(stairFileName)
     thisStair.saveAsText(stairFileName)
     mcPeriFade = thisStair.extraInfo['mcPeriFade']
