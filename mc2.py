@@ -39,6 +39,7 @@ fixSz = .15
 # MCs:
 precompileMode = 1 # get the precompiled MCs
 grtSize = 256 # size of 256 is 71mm, or 7.2dova
+contrSteps = [1,1,.6,.6,.3,.3,.2,.2,.1,.1,.05,.05,.02,.02,.01,.01] #16
 # Dimensions:
 ###### 7.2dova = 71mm = 256px; 475x296mm, 563mm viewing dist ######
 dr = (1680,1050) # display resolution in px
@@ -300,10 +301,15 @@ for thisCond in condList:
                  '_targTpeak-' + str(thisCond['targTpeak'])
     thisInfo['label'] = stairLabel
     nTrials = thisCond['trialN']
-    thisStair = data.QuestHandler(startVal = thisInfo['startContr'],
-                                  extraInfo = thisInfo,
-                                  startValSd = 2, pThreshold = .82,
-                                  gamma = 0.5, nTrials = nTrials, maxVal=0)
+    #thisStair = data.QuestHandler(startVal = thisInfo['startContr'],
+    #                              extraInfo = thisInfo,
+    #                              startValSd = 2, pThreshold = .82,
+    #                              gamma = 0.5, nTrials = nTrials, maxVal=0)
+    thisStair = data.StairHandler(startVal = thisInfo['startContr'],
+                                  extraInfo = thisInfo, maxVal=0,
+                                  nReversals = thisInfo['nRevs'],
+                                  nUp = 1, nDown = 2, stepType='lin',
+                                  stepSizes = contrSteps[0:thisInfo['nRevs']+1)
     stairs.append(thisStair)
 
 # An empty data set for storing behavioural responses:
@@ -318,6 +324,49 @@ dataFileName = filePath + os.sep + fileName + '.csv'
 
 # ====================================================================================
 # Various functions for use in trials:
+
+def writeStair(thisStair, filePath):
+    stairFileName = filePath + os.sep + thisStair.extraInfo['label']
+    print 'stair ' + thisStair.extraInfo['label'] + ' mean is %.2f' %(thisStair.mean())
+    thisStair.saveAsPickle(stairFileName)
+    thisStair.saveAsText(stairFileName)
+
+def dfStair(thisStair, expName):
+    mcPeriFade = thisStair.extraInfo['mcPeriFade']
+    mcPeriGap = np.int(thisStair.extraInfo['mcSz']/2-mcPeriFade)
+    # have the information recorded in a csv file as well:
+    dT = pd.DataFrame({'expName': expName, 'time': expInfo['time'],
+                       'participant': expInfo['participant'],
+                       'session': expInfo['session'],
+                       'nTrials': nTrials,
+                       'mcSz': thisStair.extraInfo['mcSz'],
+                       'mcSf': thisStair.extraInfo['mcSf'],
+                       'mcBv': thisStair.extraInfo['mcBv'],
+                       'mcBsf': thisStair.extraInfo['mcBsf'],
+                       'mcPeriGap': mcPeriGap,
+                       'mcPeriFade': mcPeriFade,
+                       'targSz': thisStair.extraInfo['targSz'],
+                       'targSf': thisStair.extraInfo['targSf'],
+                       'targOri1': thisStair.extraInfo['targOri1'],
+                       'targOri2': thisStair.extraInfo['targOri2'],
+                       'targXoff1': thisStair.extraInfo['targXoff1'],
+                       'targXoff2': thisStair.extraInfo['targXoff2'],
+                       'targYoff': thisStair.extraInfo['targYoff'],
+                       'targV': thisStair.extraInfo['targV'],
+                       'targTtot': thisStair.extraInfo['targTtot'],
+                       'targTpeak': thisStair.extraInfo['targTpeak'],
+                       'trialT': thisStair.extraInfo['trialT'],
+                       'fixCross': thisStair.extraInfo['fixCross'],
+                       'stairLabel': thisStair.extraInfo['label'],
+                       'stairStart': thisStair.extraInfo['startContr'],
+                       'stairMean': [thisStair.mean()]})
+    # to preserve the column order:
+    dataCols = ['expName', 'time', 'participant', 'session', 'nTrials',
+                'mcSz', 'mcSf', 'mcBv', 'mcBsf', 'mcPeriGap', 'mcPeriFade', 
+                'targSz', 'targSf', 'targOri1', 'targOri2', 'targXoff1', 'targXoff2',
+                'targYoff', 'targV', 'targTtot', 'targTpeak', 'trialT',
+                'fixCross', 'stairLabel', 'stairStart', 'stairMean']
+    return dT
 
 def sigmoid(x):
     return 1 / (1 + np.exp(-x))
@@ -399,23 +448,40 @@ for thisComponent in instructionsComponents:
         thisComponent.setAutoDraw(False)
 
 # ====================================================================================
-# Initiating the trial loop
+# Initiating the stair loop
 
-nDone=0
-for trialN in range(nTrials):
+nTrialsDone = 0
+nStairsDone = 0
+while len(stairs)>0:
     np.random.shuffle(stairs)
-    for thisStair in stairs:
+    thisStair = stairs.pop()
+    try:
+        # current contrast:
+        thisContr = thisStair.next() # contrast value
+        contrStr = 'start=%.1f, cur=%.2f' %(thisStair.extraInfo['startContr'], thisContr)
+    except StopIteration:
+        print '-------------------------------------------------'
+        nStairsDone += 1
+        print 'finished staircase'
+        writeStair(thisStair, filePath)
+        print 'reversals:'
+        print thisStair.reversalIntensities
+        print 'mean of final 6 reversals = %.3f' \
+                %(np.average(thisStair.reversalIntensities[-6:]))
+        if nStairsDone == 1: df = dfStair(thisStair, expName)
+        else: df = pd.concat([df, dfStair(thisStair, expName)])
+        # Recording the data to a csv file:
+        df.to_csv(dataFileName, index=False, columns=dataCols)
+        print 'wrote the data set to ' + dataFileName
+        print '-------------------------------------------------'
+    else:
 
-        nDone += 1
+        nTrialsDone  += 1
         if trialNfb:
-            trialNfbText.text = str(nDone) + '/' + str(trials.nTotal)
-        trialNstr = '#' + str(nDone) + '/' + str(nTrials*len(stairs))
+            trialNfbText.text = str(nTrialsDone )
+        trialNstr = '#' + str(nTrialsDone )
 
         ## Setting up trial variables
-
-        # current contrast:
-        thisContr = thisStair.next()
-        contrStr = 'start=%.1f, cur=%.2f' %(thisStair.extraInfo['startContr'], thisContr)
 
         # mc mask:
         mcSz = thisStair.extraInfo['mcSz']
@@ -507,7 +573,7 @@ for trialN in range(nTrials):
         
         # ////////////////////////////////////////////////////////////////////////////////
         if et:
-            el.sendMessage("TRIALID " + str(nDone))
+            el.sendMessage("TRIALID " + str(nTrialsDone ))
             trialStartStr = datetime.now().strftime('%Y-%m-%d_%H%M%S')
             el.sendMessage("TIMESTAMP " + trialStartStr)
             el.setOfflineMode()
@@ -663,52 +729,6 @@ for trialN in range(nTrials):
 
     # thisExp.nextEntry()
 
-nStairsDone = 0
-for thisStair in stairs:
-    nStairsDone += 1
-    stairFileName = filePath + os.sep + thisStair.extraInfo['label']
-    print 'stair ' + thisStair.extraInfo['label'] + ' mean is %.2f' %(thisStair.mean())
-    thisStair.saveAsPickle(stairFileName)
-    thisStair.saveAsText(stairFileName)
-    mcPeriFade = thisStair.extraInfo['mcPeriFade']
-    mcPeriGap = np.int(thisStair.extraInfo['mcSz']/2-mcPeriFade)
-    # have the information recorded in a csv file as well:
-    dT = pd.DataFrame({'expName': expName, 'time': expInfo['time'],
-                       'participant': expInfo['participant'],
-                       'session': expInfo['session'],
-                       'nTrials': nTrials,
-                       'mcSz': thisStair.extraInfo['mcSz'],
-                       'mcSf': thisStair.extraInfo['mcSf'],
-                       'mcBv': thisStair.extraInfo['mcBv'],
-                       'mcBsf': thisStair.extraInfo['mcBsf'],
-                       'mcPeriGap': mcPeriGap,
-                       'mcPeriFade': mcPeriFade,
-                       'targSz': thisStair.extraInfo['targSz'],
-                       'targSf': thisStair.extraInfo['targSf'],
-                       'targOri1': thisStair.extraInfo['targOri1'],
-                       'targOri2': thisStair.extraInfo['targOri2'],
-                       'targXoff1': thisStair.extraInfo['targXoff1'],
-                       'targXoff2': thisStair.extraInfo['targXoff2'],
-                       'targYoff': thisStair.extraInfo['targYoff'],
-                       'targV': thisStair.extraInfo['targV'],
-                       'targTtot': thisStair.extraInfo['targTtot'],
-                       'targTpeak': thisStair.extraInfo['targTpeak'],
-                       'trialT': thisStair.extraInfo['trialT'],
-                       'fixCross': thisStair.extraInfo['fixCross'],
-                       'stairLabel': thisStair.extraInfo['label'],
-                       'stairStart': thisStair.extraInfo['startContr'],
-                       'stairMean': [thisStair.mean()]})
-    # to preserve the column order:
-    dataCols = ['expName', 'time', 'participant', 'session', 'nTrials',
-                'mcSz', 'mcSf', 'mcBv', 'mcBsf', 'mcPeriGap', 'mcPeriFade', 
-                'targSz', 'targSf', 'targOri1', 'targOri2', 'targXoff1', 'targXoff2',
-                'targYoff', 'targV', 'targTtot', 'targTpeak', 'trialT',
-                'fixCross', 'stairLabel', 'stairStart', 'stairMean']
-    if nStairsDone == 1: df = dT
-    else: df = pd.concat([df,dT])
-# Recording the data to a csv file:
-df.to_csv(dataFileName, index=False, columns=dataCols)
-print 'wrote the data set to ' + dataFileName
 
 if et:
     # File transfer and cleanup!
