@@ -27,7 +27,7 @@ _thisDir = os.path.dirname(os.path.abspath(__file__))
 # ====================================================================================
 ## Initial variables.
 et = 0
-expName = 'mc2_tgT-mcBv_cent' # can be overwritten through GUI
+expName = 'mc2_tgT-mcBv' # can be overwritten through GUI
 # Window circles (specified in degrees of visual angles [dva]):
 #winSz = 7.2 # 5.03; calculated as 5/x=sqrt(2)/2 => x=10/sqrt(2)
 winOffX = 4.25 # 6 # 5.62
@@ -152,12 +152,29 @@ if et:
 
 # ====================================================================================
 # Store info about the experiment session
-expInfo = {u'session': u'', u'participant': u'', u'experiment': expName}
+expInfo = {u'session': u'', u'participant': u'', u'experiment': expName, u'cond': '', u'dom': ''}
+# conditions are 'cent', 'peri', 'dom', or 'test'
+# dom 0 = left, 1 = right, '' = unkown (do the domTest)
 dlg = gui.DlgFromDict(dictionary=expInfo, title='mc2') # dialogue box
 if dlg.OK == False: core.quit()  # user pressed cancel
 timeNow = datetime.now()
 expInfo['time'] = datetime.now().strftime('%Y-%m-%d_%H%M')
-expInfo['expName'] = expName
+if expInfo['dom'] == '': # do the dominance test:
+    domTest = True
+    expCond = 'dom'
+else: # if domTest==False, fixed targEye:
+    domTest = False
+    expCond = expInfo['cond']
+    domEyeR = int(float(expInfo['dom']))
+    targEyeR = 2-(2**domEyeR)
+
+# one has to specify both cond & dom for an experiment, and neither for domTest; quit otherwise:
+if not expInfo['cond'] == '' and domTest: 
+    print 'ERROR: experimental condition is specified, while the eye dominance is not!'
+    core.quit()
+elif expInfo['cond'] == '' and not domTest:
+    print 'ERROR: eye dominance is specified, while the experimental condition is not!'
+    core.quit()
 
 # Setup the Window
 win = visual.Window(size=dr, fullscr=True, screen=0, allowGUI=False, 
@@ -205,7 +222,7 @@ if et:
 if precompileMode:
     precompiledDir = '..' + os.sep + 'precompiledMCs'
 dataDir = '..' + os.sep + 'data'
-fileName = '%s_p%s_s%s_%s' %(expName, expInfo['participant'], expInfo['session'],
+fileName = '%s_%s_p%s_s%s_%s' %(expName, expCond, expInfo['participant'], expInfo['session'],
     expInfo['time'])
 filePath = dataDir + os.sep + fileName
 print filePath
@@ -220,7 +237,7 @@ if et:
     print '///set up the EDF file for eye-tracking///'
 
 # Condition-related variables
-conditionsFilePath = 'cond-files'+os.sep+'cond-'+expName+'.csv' #TEMP
+conditionsFilePath = 'cond-files'+os.sep+'cond-'+expName+'_'+expCond+'.csv'
 print conditionsFilePath
 os.chdir(_thisDir)
 
@@ -249,7 +266,7 @@ winR = visual.Polygon(win, edges=36, size=[winSz, winSz], pos=posCentR,
                       lineWidth=winThickness, lineColor='white')
 # target gabor
 targGab = visual.GratingStim(win, tex='sin', mask='circle', size=[winSz, winSz],
-                      pos=posCentL)
+                      pos=posCentL) # this position will change dep. on eyeDom
 # fixation:
 fixL = visual.ShapeStim(win, pos=posCentL, vertices=((0,-fixSz), (0,fixSz), (0,0), 
                                                      (-fixSz,0), (fixSz,0)),
@@ -294,12 +311,13 @@ for thisComponent in instructionsComponents:
 # ====================================================================================
 # Setting up the conditions:
 condList = data.importConditions(conditionsFilePath)
-stairs = []
+stairs, completedStairs = [], []
 for thisCond in condList:
     thisInfo = copy.copy(thisCond)
     stairLabel = 'st' + str(thisCond['startContr']) + \
                  '_mcBv' + str(thisCond['mcBv']) + \
                  '_targTpeak' + str(thisCond['targTpeak'])
+    if domTest: stairLabel += '_targEyeR' + str(thisCond['targEyeR'])
     thisInfo['label'] = stairLabel
     thisStair = data.StairHandler(startVal = thisInfo['startContr'],
                                   extraInfo = thisInfo, maxVal=0,
@@ -327,12 +345,15 @@ def writeStair(thisStair, filePath):
     thisStair.saveAsPickle(stairFileName)
     thisStair.saveAsText(stairFileName)
 
-def dfStair(thisStair, expName):
+def dfStair(thisStair, expName, expCond, targEyeR):
     mcPeriFade = thisStair.extraInfo['mcPeriFade']
     mcPeriGap = np.int(thisStair.extraInfo['mcSz']/2-mcPeriFade)
+    meanRev6 = np.average(thisStair.reversalIntensities[-6:])
     # have the information recorded in a csv file as well:
-    dT = pd.DataFrame({'expName': expName, 'time': expInfo['time'],
+    dT = pd.DataFrame({'expName': expName, 'expCond': expCond,
+                       'time': expInfo['time'],
                        'participant': expInfo['participant'],
+                       'dom': expInfo['dom'],
                        'session': expInfo['session'],
                        'nRevs': thisStair.extraInfo['nRevs'],
                        'mcSz': thisStair.extraInfo['mcSz'],
@@ -351,11 +372,19 @@ def dfStair(thisStair, expName):
                        'targV': thisStair.extraInfo['targV'],
                        'targTtot': thisStair.extraInfo['targTtot'],
                        'targTpeak': thisStair.extraInfo['targTpeak'],
+                       'targEyeR': targEyeR,
                        'trialT': thisStair.extraInfo['trialT'],
                        'fixCross': thisStair.extraInfo['fixCross'],
                        'stairLabel': thisStair.extraInfo['label'],
-                       'stairStart': [thisStair.extraInfo['startContr']]})
+                       'stairStart': thisStair.extraInfo['startContr'],
+                       'meanRev6': [meanRev6]})
     return dT
+
+dataCols = ['expName', 'expCond', 'time', 'participant', 'dom', 'session', 'nRevs',
+            'mcSz', 'mcSf', 'mcBv', 'mcBsf', 'mcPeriGap', 'mcPeriFade', 
+            'targSz', 'targSf', 'targOri1', 'targOri2', 'targXoff1', 'targXoff2',
+            'targYoff', 'targV', 'targTtot', 'targTpeak', 'trialT',
+            'fixCross', 'stairLabel', 'stairStart', 'meanRev6']
 
 def sigmoid(x):
     return 1 / (1 + np.exp(-x))
@@ -442,6 +471,14 @@ for thisComponent in instructionsComponents:
 nTrialsDone = 0
 nStairsDone = 0
 while len(stairs)>0:
+
+    # printing current reversals:
+    curRevs = []
+    for thisStair in stairs:
+        curRevs.append(len(thisStair.reversalIntensities))
+    print 'curRevs: ' + str(curRevs)
+
+    # selecting a stair for this trial:
     np.random.shuffle(stairs)
     thisStair = stairs.pop()
 
@@ -454,19 +491,13 @@ while len(stairs)>0:
         print '-------------------------------------------------'
         nStairsDone += 1
         print 'finished staircase ' + thisStair.extraInfo['label']
-        print 'meanRev6 = %.3f' %(np.average(thisStair.reversalIntensities[-6:]))
-        print thisStair.reversalIntensities
         writeStair(thisStair, filePath)
-        if nStairsDone == 1: df = dfStair(thisStair, expName)
-        else: df = pd.concat([df, dfStair(thisStair, expName)])
+        if nStairsDone == 1: df = dfStair(thisStair, expName, expCond, targEyeR)
+        else: df = pd.concat([df, dfStair(thisStair, expName, expCond, targEyeR)])
         # Recording the data to a csv file:
-        dataCols = ['expName', 'time', 'participant', 'session', 'nRevs',
-                    'mcSz', 'mcSf', 'mcBv', 'mcBsf', 'mcPeriGap', 'mcPeriFade', 
-                    'targSz', 'targSf', 'targOri1', 'targOri2', 'targXoff1', 'targXoff2',
-                    'targYoff', 'targV', 'targTtot', 'targTpeak', 'trialT',
-                    'fixCross', 'stairLabel', 'stairStart', 'stairMean']
         df.to_csv(dataFileName, index=False, columns=dataCols)
         print 'wrote the data set to ' + dataFileName
+        completedStairs.append(thisStair)
         print '-------------------------------------------------'
 
     else:
@@ -489,7 +520,7 @@ while len(stairs)>0:
         targYoff = thisStair.extraInfo['targYoff']
         targV = thisStair.extraInfo['targV']
 
-        # Random target features: orientation and location:
+        # random target features: orientation and location:
         targOri1 = thisStair.extraInfo['targOri1']
         targOri2 = thisStair.extraInfo['targOri2']
         allTargOris = np.array([targOri1, targOri2])
@@ -499,13 +530,19 @@ while len(stairs)>0:
         allTargXoffs = np.array([targXoff1, targXoff2])
         thisTargXoff = allTargXoffs[np.random.randint(2)]
 
-        # Setting up the target with the above characteristics:
+        # setting up the target with the above characteristics:
         targGab.size = targSz
         targGab.sf = targSf
-        targGab.pos = posCentL + np.array([thisTargXoff, targYoff])
         targGab.ori = thisTargOri + 90 # since, by default, 0 deg results in vert
 
-        # Temporal variables:
+        # dealing with which eye the targ/mask are presented to:
+        if domTest: # else is assigned through GUI
+            targEyeR = thisStair.extraInfo['targEyeR']
+        maskPos = [winOffX-(2*winOffX*targEyeR), winOffY]
+        targGab.pos = [-winOffX+(2*winOffX*targEyeR), winOffY] + \
+                      np.array([thisTargXoff, targYoff])
+
+        # temporal variables:
         targTtot = thisStair.extraInfo['targTtot']
         targTpeak = thisStair.extraInfo['targTpeak']
         targTstart = targTpeak-(targTtot/2)
@@ -606,8 +643,7 @@ while len(stairs)>0:
             if t < trialT:
                 # mcMask:
                 mcMask = visual.GratingStim(win, tex=grt[:,:,frameN%nFrames], 
-                    size=(grtSize,grtSize), pos=[winOffX, winOffY], 
-                    interpolate=False, mask=mcPeriMask)
+                    size=(grtSize,grtSize), pos=maskPos, interpolate=False, mask=mcPeriMask)
                 mcMask.draw()
                 # drawing the fixation cross, if any:
                 if fixCross:
@@ -723,6 +759,11 @@ while len(stairs)>0:
 
     # thisExp.nextEntry()
 
+# summary of completed stairs:
+for thisStair in completedStairs:
+    print 'staircase ' + thisStair.extraInfo['label']
+    print 'meanRev6 = %.3f' %(np.average(thisStair.reversalIntensities[-6:]))
+    #print thisStair.reversalIntensities
 
 if et:
     # File transfer and cleanup!
