@@ -529,6 +529,7 @@ while len(stairs)>0:
         targXoff2 = thisStair.extraInfo['targXoff2']
         allTargXoffs = np.array([targXoff1, targXoff2])
         thisTargXoff = allTargXoffs[np.random.randint(2)]
+        targDir = np.random.randint(2) * 2 - 1 # either -1 (up) or 1 (down)
 
         # setting up the target with the above characteristics:
         targGab.size = targSz
@@ -550,9 +551,9 @@ while len(stairs)>0:
         trialT = thisStair.extraInfo['trialT'] # -win.monitorFramePeriod*0.75
         
         print 'TRIAL' + '\t' + 'CONTRAST' + '\t\t' + 'mcBv' + '\t' + 'targT' + \
-              '\t' + 'targOri' + '\t' + 'targXoff'
+              '\t' + 'targOri' + '\t' + 'targDir' + '\t' + 'targXoff'
         print trialNstr + '\t' + contrStr + '\t' + str(mcBv) + '\t' + str(targTpeak) + \
-              '\t' + str(thisTargOri) + '\t' + str(thisTargXoff)
+              '\t' + str(thisTargOri) + '\t' + str(targDir) + '\t' + str(thisTargXoff)
 
         # view setup: fade, gap, and fixation cross
         fixCross = thisStair.extraInfo['fixCross']
@@ -656,6 +657,8 @@ while len(stairs)>0:
                     targGab.opacity = sigmoidMod((targTend-t)*2/targTtot)*10**thisContr
                 else:
                     targGab.opacity = 0
+                if t > targTstart and t < targTend:
+                    targGab.phase = targGab.phase + (targDir * targV / 60)
                 targGab.draw()
             
             # *key_arrow* updates for target reponses:
