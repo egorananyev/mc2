@@ -152,7 +152,7 @@ if et:
 
 # ====================================================================================
 # Store info about the experiment session
-expInfo = {u'session': u'', u'participant': u'', u'experiment': expName, u'cond': '', u'dom': ''}
+expInfo = {u'session': u'', u'participant': u'', u'experiment': expName, u'para': '', u'dom': ''}
 # conditions are 'cent', 'peri', 'dom', or 'test'
 # dom 0 = left, 1 = right, '' = unkown (do the domTest)
 dlg = gui.DlgFromDict(dictionary=expInfo, title='mc2') # dialogue box
@@ -161,18 +161,18 @@ timeNow = datetime.now()
 expInfo['time'] = datetime.now().strftime('%Y-%m-%d_%H%M')
 if expInfo['dom'] == '': # do the dominance test:
     domTest = True
-    expCond = 'dom'
+    expPara = 'dom'
 else: # if domTest==False, fixed targEye:
     domTest = False
-    expCond = expInfo['cond']
+    expPara = expInfo['para']
     domEyeR = int(float(expInfo['dom']))
     targEyeR = 2-(2**domEyeR)
 
-# one has to specify both cond & dom for an experiment, and neither for domTest; quit otherwise:
-if not expInfo['cond'] == '' and domTest: 
+# one has to specify both para & dom for an experiment, and neither for domTest; quit otherwise:
+if not expInfo['para'] == '' and domTest: 
     print 'ERROR: experimental condition is specified, while the eye dominance is not!'
     core.quit()
-elif expInfo['cond'] == '' and not domTest:
+elif expInfo['para'] == '' and not domTest:
     print 'ERROR: eye dominance is specified, while the experimental condition is not!'
     core.quit()
 
@@ -222,7 +222,7 @@ if et:
 if precompileMode:
     precompiledDir = '..' + os.sep + 'precompiledMCs'
 dataDir = '..' + os.sep + 'data'
-fileName = '%s_%s_p%s_s%s_%s' %(expName, expCond, expInfo['participant'], expInfo['session'],
+fileName = '%s_%s_p%s_s%s_%s' %(expName, expPara, expInfo['participant'], expInfo['session'],
     expInfo['time'])
 filePath = dataDir + os.sep + fileName
 print filePath
@@ -237,7 +237,7 @@ if et:
     print '///set up the EDF file for eye-tracking///'
 
 # Condition-related variables
-conditionsFilePath = 'cond-files'+os.sep+'cond-'+expName+'_'+expCond+'.csv'
+conditionsFilePath = 'cond-files'+os.sep+'cond-'+expName+'_'+expPara+'.csv'
 print conditionsFilePath
 os.chdir(_thisDir)
 
@@ -345,12 +345,12 @@ def writeStair(thisStair, filePath):
     thisStair.saveAsPickle(stairFileName)
     thisStair.saveAsText(stairFileName)
 
-def dfStair(thisStair, expName, expCond, targEyeR):
+def dfStair(thisStair, expName, expPara, targEyeR):
     mcPeriFade = thisStair.extraInfo['mcPeriFade']
     mcPeriGap = np.int(thisStair.extraInfo['mcSz']/2-mcPeriFade)
     meanRev6 = np.average(thisStair.reversalIntensities[-6:])
     # have the information recorded in a csv file as well:
-    dT = pd.DataFrame({'expName': expName, 'expCond': expCond,
+    dT = pd.DataFrame({'expName': expName, 'expPara': expPara,
                        'time': expInfo['time'],
                        'participant': expInfo['participant'],
                        'dom': expInfo['dom'],
@@ -380,7 +380,7 @@ def dfStair(thisStair, expName, expCond, targEyeR):
                        'meanRev6': [meanRev6]})
     return dT
 
-dataCols = ['expName', 'expCond', 'time', 'participant', 'dom', 'session', 'nRevs',
+dataCols = ['expName', 'expPara', 'time', 'participant', 'dom', 'session', 'nRevs',
             'mcSz', 'mcSf', 'mcBv', 'mcBsf', 'mcPeriGap', 'mcPeriFade', 
             'targSz', 'targSf', 'targOri1', 'targOri2', 'targXoff1', 'targXoff2',
             'targYoff', 'targV', 'targTtot', 'targTpeak', 'trialT',
@@ -492,8 +492,8 @@ while len(stairs)>0:
         nStairsDone += 1
         print 'finished staircase ' + thisStair.extraInfo['label']
         writeStair(thisStair, filePath)
-        if nStairsDone == 1: df = dfStair(thisStair, expName, expCond, targEyeR)
-        else: df = pd.concat([df, dfStair(thisStair, expName, expCond, targEyeR)])
+        if nStairsDone == 1: df = dfStair(thisStair, expName, expPara, targEyeR)
+        else: df = pd.concat([df, dfStair(thisStair, expName, expPara, targEyeR)])
         # Recording the data to a csv file:
         df.to_csv(dataFileName, index=False, columns=dataCols)
         print 'wrote the data set to ' + dataFileName
