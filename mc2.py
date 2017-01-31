@@ -496,7 +496,7 @@ while len(stairs)>0:
         else: df = pd.concat([df, dfStair(thisStair, expName, expPara, targEyeR)])
         # Recording the data to a csv file:
         df.to_csv(dataFileName, index=False, columns=dataCols)
-        print 'wrote the data set to ' + dataFileName
+        print 'wrote to ' + dataFileName
         completedStairs.append(thisStair)
         print '-------------------------------------------------'
 
@@ -671,8 +671,8 @@ while len(stairs)>0:
                 key_arrow.clock.reset()  # now t=0
                 event.clearEvents(eventType='keyboard')
                 kb_device.clearEvents()
-            # registering response at throughout the trial
-            if key_arrow.status == STARTED:
+            # registering response at the end of the trial
+            if key_arrow.status == STARTED and t > trialT:
                 theseKeys = event.getKeys(keyList=['left','right'])
                 if len(theseKeys) > 0:
                     if 'left' in theseKeys:
