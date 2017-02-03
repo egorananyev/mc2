@@ -40,7 +40,8 @@ fixSz = .15
 precompileMode = 1 # get the precompiled MCs
 grtSize = 256 # size of 256 is 71mm, or 7.2dova
 #contrSteps = [1,1,.6,.6,.3,.3,.2,.2,.1,.1,.05,.05,.02,.02,.01,.01] #16
-contrSteps = [1,1,1,1,.6,.6,.6,.6,.3,.3,.2,.2] #12
+#contrSteps = [1,1,1,1,.6,.6,.6,.6,.3,.3,.2,.2] #12
+contrSteps = [2,2,2,2,1,1,1,1,.5,.5] #12
 # Dimensions:
 ###### 7.2dova = 71mm = 256px; 475x296mm, 563mm viewing dist ######
 dr = (1680,1050) # display resolution in px
