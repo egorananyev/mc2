@@ -41,7 +41,9 @@ precompileMode = 1 # get the precompiled MCs
 grtSize = 256 # size of 256 is 71mm, or 7.2dova
 #contrSteps = [1,1,.6,.6,.3,.3,.2,.2,.1,.1,.05,.05,.02,.02,.01,.01] #16
 #contrSteps = [1,1,1,1,.6,.6,.6,.6,.3,.3,.2,.2] #12
-contrSteps = [2,2,2,2,1,1,1,1,.5,.5] #12
+#contrSteps = [2,2,2,2,1,1,1,1,.5,.5] #12
+#contrSteps = [1.2,1.2,1.2,1.2,.6,.6,.6,.6,.3,.3] #10
+contrSteps = [1.3,1.3,.9,.9,.6,.6,.4,.4,.3,.3] #10
 # Dimensions:
 ###### 7.2dova = 71mm = 256px; 475x296mm, 563mm viewing dist ######
 dr = (1680,1050) # display resolution in px
@@ -321,7 +323,7 @@ for thisCond in condList:
     if domTest: stairLabel += '_targEyeR' + str(thisCond['targEyeR'])
     thisInfo['label'] = stairLabel
     thisStair = data.StairHandler(startVal = thisInfo['startContr'],
-                                  extraInfo = thisInfo, maxVal=0,
+                                  extraInfo = thisInfo, maxVal=0, minVal=-4,
                                   nReversals = thisInfo['nRevs'],
                                   nUp = 1, nDown = 2, stepType='lin',
                                   stepSizes = contrSteps[0:thisInfo['nRevs']],
