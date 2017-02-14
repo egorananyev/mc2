@@ -690,6 +690,7 @@ while len(stairs)>0:
                         rt = t - targTstart
                         if behRespTrial == thisTargXoff: corrResp = 1
                         else: corrResp = 0
+                        if thisContr <= -4: corrResp =0
 
             if t > trialT and not elStopped:
                 # stopping eye-tracking recording:
