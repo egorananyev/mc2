@@ -40,7 +40,8 @@ fixSz = .15
 precompileMode = 1 # get the precompiled MCs
 grtSize = 256 # size of 256 is 71mm, or 7.2dova
 #contrSteps = [1.3,1.3,.9,.9,.6,.6,.4,.4,.3,.3] #10
-contrSteps = [.2,.2,.1,.1,.05,.05,.02,.02,.01,.01,.005,.005] #10
+#contrSteps = [.2,.2,.1,.1,.05,.05,.02,.02,.01,.01,.005,.005] #10
+contrSteps = [.5,.5,.3,.3,.2,.2,.15,.15,.12,.12,.1,.1]
 # Dimensions:
 ###### 7.2dova = 71mm = 256px; 475x296mm, 563mm viewing dist ######
 dr = (1680,1050) # display resolution in px
@@ -320,7 +321,7 @@ for thisCond in condList:
     if domTest: stairLabel += '_targEyeR' + str(thisCond['targEyeR'])
     thisInfo['label'] = stairLabel
     thisStair = data.StairHandler(startVal = thisInfo['startContr'],
-                                  extraInfo = thisInfo, maxVal=1, minVal=0,
+                                  extraInfo = thisInfo, maxVal=0, minVal=-2,
                                   nReversals = thisInfo['nRevs'],
                                   nUp = 1, nDown = 1, stepType='lin',
                                   stepSizes = contrSteps[0:thisInfo['nRevs']],
@@ -485,7 +486,7 @@ while len(stairs)>0:
     try:
         # current contrast:
         thisContr = thisStair.next() # contrast value
-        contrStr = 'start=%i, cur=%.3f' %(thisStair.extraInfo['startContr'], thisContr)
+        contrStr = 'start=%.1f, cur=%.2f' %(thisStair.extraInfo['startContr'], thisContr)
 
     except StopIteration:
         print '-------------------------------------------------'
@@ -513,6 +514,10 @@ while len(stairs)>0:
         mcSf = thisStair.extraInfo['mcSf']
         mcBv = thisStair.extraInfo['mcBv']
         mcBsf = thisStair.extraInfo['mcBsf']
+        #thisMaskOri = np.rint(np.random.rand(1) * 360)
+        #print 'mask ori=' + str(thisMaskOri)
+        if mcBv <= 0.01:
+            thisMaskFrame = np.random.randint(60)
 
         # target:
         targSz = thisStair.extraInfo['targSz']
@@ -568,9 +573,14 @@ while len(stairs)>0:
             
         # initiating the mc gratings:
         mcV = 0
-        grt = np.load(precompiledDir + os.sep + 'mc_' + str(mcV) +
-                '_sf' + str(mcSf) + '_bsf' + str(mcBsf) + '_bv' + str(mcBv) + 
-                '_sz' + str(mcSz) + '.npy')
+        if mcBv > 0.01:
+            grt = np.load(precompiledDir + os.sep + 'mc_' + str(mcV) +
+                    '_sf' + str(mcSf) + '_bsf' + str(mcBsf) + '_bv' + str(mcBv) + 
+                    '_sz' + str(mcSz) + '.npy')
+        else:
+            grt = np.load(precompiledDir + os.sep + 'mc_' + str(mcV) +
+                    '_sf' + str(mcSf) + '_bsf' + str(mcBsf) + '_bv' + str(9.6) + 
+                    '_sz' + str(mcSz) + '.npy')
 
         # creating a mask, which is fixed for a given trial:
         mcPeriMask = periMask(periGap, periFade)
@@ -643,8 +653,13 @@ while len(stairs)>0:
             # mcMask and targ presentation:
             if t < trialT:
                 # mcMask:
-                mcMask = visual.GratingStim(win, tex=grt[:,:,frameN%nFrames], 
-                    size=(grtSize,grtSize), pos=maskPos, interpolate=False, mask=mcPeriMask)
+                if mcBv > 0.01:
+                    mcMask = visual.GratingStim(win, tex=grt[:,:,frameN%nFrames], 
+                        size=(grtSize,grtSize), pos=maskPos, interpolate=False, mask=mcPeriMask)
+                else:
+                    mcMask = visual.GratingStim(win, tex=grt[:,:,thisMaskFrame], 
+                        size=(grtSize,grtSize), pos=maskPos, interpolate=False, mask=mcPeriMask)
+                    #ori=thisMaskOri)
                 mcMask.draw()
                 # drawing the fixation cross, if any:
                 if fixCross:
@@ -652,9 +667,9 @@ while len(stairs)>0:
                     fixR.draw()
                 # target presentation:
                 if t > targTstart and t < targTpeak:
-                    targGab.opacity = sigmoidMod((t-targTstart)*2/targTtot)*thisContr
+                    targGab.opacity = sigmoidMod((t-targTstart)*2/targTtot)*10**thisContr
                 elif t > targTpeak and t < targTend:
-                    targGab.opacity = sigmoidMod((targTend-t)*2/targTtot)*thisContr
+                    targGab.opacity = sigmoidMod((targTend-t)*2/targTtot)*10**thisContr
                 else:
                     targGab.opacity = 0
                 if t > targTstart and t < targTend:
@@ -691,7 +706,7 @@ while len(stairs)>0:
                         rt = t - targTstart
                         if behRespTrial == thisTargXoff: corrResp = 1 # correct dir resp
                         else: corrResp = 0 # this is the result from both 0 and wrong dir resp
-                        if thisContr < 0.005: corrResp = 0
+                        if thisContr <= -2 : corrResp = 0
 
             if t > trialT and not elStopped:
                 # stopping eye-tracking recording:
