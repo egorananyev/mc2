@@ -27,7 +27,7 @@ _thisDir = os.path.dirname(os.path.abspath(__file__))
 # ====================================================================================
 ## Initial variables.
 et = 0
-expName = 'mc2_tgT-mcBv' # can be overwritten through GUI
+expName = 'mc2_tgT-mcBv2' # can be overwritten through GUI
 # Window circles (specified in degrees of visual angles [dva]):
 #winSz = 7.2 # 5.03; calculated as 5/x=sqrt(2)/2 => x=10/sqrt(2)
 winOffX = 4.25 # 6 # 5.62
@@ -39,11 +39,8 @@ fixSz = .15
 # MCs:
 precompileMode = 1 # get the precompiled MCs
 grtSize = 256 # size of 256 is 71mm, or 7.2dova
-#contrSteps = [1,1,.6,.6,.3,.3,.2,.2,.1,.1,.05,.05,.02,.02,.01,.01] #16
-#contrSteps = [1,1,1,1,.6,.6,.6,.6,.3,.3,.2,.2] #12
-#contrSteps = [2,2,2,2,1,1,1,1,.5,.5] #12
-#contrSteps = [1.2,1.2,1.2,1.2,.6,.6,.6,.6,.3,.3] #10
-contrSteps = [1.3,1.3,.9,.9,.6,.6,.4,.4,.3,.3] #10
+#contrSteps = [1.3,1.3,.9,.9,.6,.6,.4,.4,.3,.3] #10
+contrSteps = [.2,.2,.1,.1,.05,.05,.02,.02,.01,.01,.005,.005] #10
 # Dimensions:
 ###### 7.2dova = 71mm = 256px; 475x296mm, 563mm viewing dist ######
 dr = (1680,1050) # display resolution in px
@@ -323,9 +320,9 @@ for thisCond in condList:
     if domTest: stairLabel += '_targEyeR' + str(thisCond['targEyeR'])
     thisInfo['label'] = stairLabel
     thisStair = data.StairHandler(startVal = thisInfo['startContr'],
-                                  extraInfo = thisInfo, maxVal=0, minVal=-3,
+                                  extraInfo = thisInfo, maxVal=1, minVal=0,
                                   nReversals = thisInfo['nRevs'],
-                                  nUp = 1, nDown = 2, stepType='lin',
+                                  nUp = 1, nDown = 1, stepType='lin',
                                   stepSizes = contrSteps[0:thisInfo['nRevs']],
                                   name = stairLabel)
     stairs.append(thisStair)
@@ -488,7 +485,7 @@ while len(stairs)>0:
     try:
         # current contrast:
         thisContr = thisStair.next() # contrast value
-        contrStr = 'start=%.1f, cur=%.2f' %(thisStair.extraInfo['startContr'], thisContr)
+        contrStr = 'start=%i, cur=%.3f' %(thisStair.extraInfo['startContr'], thisContr)
 
     except StopIteration:
         print '-------------------------------------------------'
@@ -655,9 +652,9 @@ while len(stairs)>0:
                     fixR.draw()
                 # target presentation:
                 if t > targTstart and t < targTpeak:
-                    targGab.opacity = sigmoidMod((t-targTstart)*2/targTtot)*10**thisContr
+                    targGab.opacity = sigmoidMod((t-targTstart)*2/targTtot)*thisContr
                 elif t > targTpeak and t < targTend:
-                    targGab.opacity = sigmoidMod((targTend-t)*2/targTtot)*10**thisContr
+                    targGab.opacity = sigmoidMod((targTend-t)*2/targTtot)*thisContr
                 else:
                     targGab.opacity = 0
                 if t > targTstart and t < targTend:
@@ -676,7 +673,7 @@ while len(stairs)>0:
                 kb_device.clearEvents()
             # registering response at the end of the trial
             if key_arrow.status == STARTED and t > trialT:
-                theseKeys = event.getKeys(keyList=['left','right'])
+                theseKeys = event.getKeys(keyList=['left','right','down'])
                 if len(theseKeys) > 0:
                     if 'left' in theseKeys:
                         print 'response: left'
@@ -686,11 +683,15 @@ while len(stairs)>0:
                         print 'response: right'
                         behRespTrial = targXoff2 # the second number is positive
                         targRespGiven = True
-                    if targRespGiven:
+                    elif 'down' in theseKeys:
+                        print 'response: down'
+                        behRespTrial = 0
+                        targRespGiven = True
+                    if targRespGiven: # this is overwritten every time any key is pressed
                         rt = t - targTstart
-                        if behRespTrial == thisTargXoff: corrResp = 1
-                        else: corrResp = 0
-                        if thisContr <= -3: corrResp =0
+                        if behRespTrial == thisTargXoff: corrResp = 1 # correct dir resp
+                        else: corrResp = 0 # this is the result from both 0 and wrong dir resp
+                        if thisContr < 0.005: corrResp = 0
 
             if t > trialT and not elStopped:
                 # stopping eye-tracking recording:
