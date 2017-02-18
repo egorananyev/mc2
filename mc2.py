@@ -248,11 +248,11 @@ endExpNow = False  # flag for 'escape' or other condition => quit the exp
 
 # Initialize components for Routine "instructions"
 instructionsClock = core.Clock()
-instrTextL = visual.TextStim(win, text='Press any key to start', font='Cambria',
-                             pos=posCentL, height=dg2px(.65), wrapWidth=dg2px(5),
+instrTextL = visual.TextStim(win, text='press any key\n     to start', font='Cambria',
+                             pos=posCentL, height=dg2px(.5), wrapWidth=dg2px(4),
                              color='white', alignHoriz='center')
-instrTextR = visual.TextStim(win, text='Press any key to start', font='Cambria',
-                             pos=posCentR, height=dg2px(.65), wrapWidth=dg2px(5),
+instrTextR = visual.TextStim(win, text='press any key\n     to start', font='Cambria',
+                             pos=posCentR, height=dg2px(.5), wrapWidth=dg2px(4),
                              color='white', alignHoriz='center')
 
 # Initialize components for Routine "trial"
@@ -281,12 +281,26 @@ if trialNfb:
                                    pos=(0,0), height=dg2px(.55), wrapWidth=dg2px(4.5),
                                    color='white')
 # pause text:
-pauseTextL = visual.TextStim(win, text='Press Spacebar to continue', font='Cambria',
-                             alignHoriz='center', pos=posCentL, height=dg2px(.7),
-                             wrapWidth=dg2px(3), color='white')
-pauseTextR = visual.TextStim(win, text='Press Spacebar to continue', font='Cambria',
-                             alignHoriz='center', pos=posCentR, height=dg2px(.7),
-                             wrapWidth=dg2px(3), color='white')
+#vertShift = np.array([0,40])
+pauseStr = 'press spacebar\n\n    to continue'
+pauseTextL = visual.TextStim(win, text=pauseStr, font='Cambria',
+                             alignHoriz='center', pos=(posCentL), height=dg2px(.5),
+                             wrapWidth=None, color='white') #dg2px(3.5)
+pauseTextR = visual.TextStim(win, text=pauseStr, font='Cambria',
+                             alignHoriz='center', pos=(posCentR), height=dg2px(.5),
+                             wrapWidth=dg2px(3.5), color='white')
+
+# resp question & feedback:
+fdbStrQn = '?'
+fdbStrL = '<'
+fdbStrR = '>'
+fdbStr0 = 'o'
+fdbTextL = visual.TextStim(win, text=fdbStrQn, font='Cambria',
+                          alignHoriz='center', pos=(posCentL), height=dg2px(.4),
+                          wrapWidth=dg2px(3), color='white')
+fdbTextR = visual.TextStim(win, text=fdbStrQn, font='Cambria',
+                          alignHoriz='center', pos=(posCentR), height=dg2px(.4),
+                          wrapWidth=dg2px(3), color='white')
 
 # Create some handy timers
 globalClock = core.Clock()  # to track the time since experiment started
@@ -675,9 +689,9 @@ while len(stairs)>0:
                 if t > targTstart and t < targTend:
                     targGab.phase = targGab.phase + (targDir * targV / 60)
                 targGab.draw()
-            
+
             # *key_arrow* updates for target reponses:
-            if key_arrow.status == NOT_STARTED:
+            if key_arrow.status == NOT_STARTED and t >= trialT: # record key strokes only after trial end
                 # keep track of start time/frame for later
                 key_arrow.tStart = t  # underestimates by a little under one frame
                 key_arrow.frameNStart = frameN  # exact frame index
@@ -693,20 +707,30 @@ while len(stairs)>0:
                     if 'left' in theseKeys:
                         print 'response: left'
                         behRespTrial = targXoff1 # the first number is negative
+                        fdbTextL.text = fdbStrL
+                        fdbTextR.text = fdbStrL
                         targRespGiven = True
                     elif 'right' in theseKeys:
                         print 'response: right'
                         behRespTrial = targXoff2 # the second number is positive
+                        fdbTextL.text = fdbStrR
+                        fdbTextR.text = fdbStrR
                         targRespGiven = True
                     elif 'down' in theseKeys:
                         print 'response: down'
                         behRespTrial = 0
+                        fdbTextL.text = fdbStr0
+                        fdbTextR.text = fdbStr0
                         targRespGiven = True
                     if targRespGiven: # this is overwritten every time any key is pressed
                         rt = t - targTstart
                         if behRespTrial == thisTargXoff: corrResp = 1 # correct dir resp
                         else: corrResp = 0 # this is the result from both 0 and wrong dir resp
                         if thisContr <= -2 : corrResp = 0
+
+            if t > trialT and not keyPause:
+                fdbTextL.draw()
+                fdbTextR.draw()
 
             if t > trialT and not elStopped:
                 # stopping eye-tracking recording:
@@ -723,6 +747,8 @@ while len(stairs)>0:
                     # only update the response upon pressing 'space':
                     if corrResp: print 'correct'
                     else: print 'incorrect'
+                    fdbTextL.text = fdbStrQn
+                    fdbTextR.text = fdbStrQn
                     thisStair.addResponse(corrResp)
                     thisStair.addOtherData('rt',rt)
                     thisStair.addOtherData('targOri',thisTargOri)
