@@ -489,8 +489,15 @@ while len(stairs)>0:
 
     # printing current reversals:
     curRevs = []
+    nRevs = thisStair.extraInfo['nRevs']
+    nStairsTotal = len(stairs) + nStairsDone
     for thisStair in stairs:
         curRevs.append(len(thisStair.reversalIntensities))
+    #if nStairsDone>0:
+    #    curRevs = [curRevs, np.repeat(nRevs,nStairsDone)]
+    #    #curRevs.append(np.repeat(10,nStairsDone))
+    #curPerc = np.average(curRevs)/np.repeat(nRevs,nStairsTotal)*100
+    #print 'staircase progress: %i%%' %(curPerc.item(0))
     print 'curRevs: ' + str(curRevs)
 
     # selecting a stair for this trial:
@@ -726,7 +733,7 @@ while len(stairs)>0:
                         rt = t - targTstart
                         if behRespTrial == thisTargXoff: corrResp = 1 # correct dir resp
                         else: corrResp = 0 # this is the result from both 0 and wrong dir resp
-                        if thisContr <= -2 : corrResp = 0
+                        if thisContr <= -2: corrResp = 0
 
             if t > trialT and not keyPause:
                 fdbTextL.draw()
@@ -745,8 +752,6 @@ while len(stairs)>0:
                 if 'space' in event.getKeys(keyList=['space']):
                     keyPause = True
                     # only update the response upon pressing 'space':
-                    if corrResp: print 'correct'
-                    else: print 'incorrect'
                     fdbTextL.text = fdbStrQn
                     fdbTextR.text = fdbStrQn
                     thisStair.addResponse(corrResp)
