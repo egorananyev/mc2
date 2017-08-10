@@ -1,0 +1,167 @@
+---
+title: "Motion clouds rivalry: Target detection"
+author: "Egor Ananyev"
+date: "April 23, 2017"
+output:
+    html_document:
+        toc: true
+---
+
+<style type="text/css">
+body, td{
+  font-family: Cambria;
+}
+code.r{
+  font-family: Inconsolata;
+}
+</style>
+
+# Preparing the data
+
+## Loading the packages and data directories
+```{r set-options, message=F}
+options(width=108)
+out=F
+# The list of subjects, the order of conditions, and the thresholds are derived from Subjects.xlsx
+library(xlsx)
+library(ggplot2)
+library(plyr)
+library(reshape)
+library(matrixStats)
+#library(splines)
+db <- '/home/egor/Dropbox/' # on Linux
+db <- '/Users/Egor/Dropbox/' # Windows
+db <- '~/Dropbox/' # on Mac
+```
+
+## Plot variables
+```{r, message=FALSE, warning=FALSE}
+# theme for plotting:
+alpha <- .7
+themefy <- function(p) {
+    p <- p + theme_bw() + 
+         theme(panel.grid.minor.x=element_blank(), panel.grid.minor.y=element_blank(),
+            axis.text=element_text(size=8), axis.title=element_text(size=9),
+            legend.text=element_text(size=8), legend.title=element_text(size=9),
+            legend.key = element_blank(), legend.margin=margin(t=-.04, unit='in'),
+            legend.background = element_rect(fill='transparent'))
+}
+# cc <- c('#a6cee3','#1f78b4','#b2df8a','#33a02c','#fb9a99','#e31a1c','#fdbf6f')
+# cc <- c('#fed976','#c7e9b4','#7fcdbb','#41b6c4','#1d91c0','#225ea8','#0c2c84')
+cc <- c('#e31a1c','#fdbf6f','#a6cee3','#1f78b4','#b2df8a','#33a02c','#fb9a99')
+```
+
+## Loading the data
+```{r}
+df <- read.csv(paste(db,'Projects/mc/mc2/an/conds.csv',sep=''))
+df$targPeri <- 0
+df$targPeri[df$targXoff2>50] <- 1
+df$maskDyna <- 0
+df$maskDyna[df$mcBv>1] <- 1
+colsOfInt <- c('participant','session', #info
+               'targPeri', 'maskDyna', 'targTpeak', #IVs
+               'meanRevs6') #DVs
+ds <- df[,colsOfInt]
+ds <- rename(ds, c(participant='subj', session='sess', meanRevs6='thresh'))
+head(ds)
+```
+
+```{r}
+# summary data set
+threshSubj <- ddply(ds, .(subj, targTpeak, targPeri, maskDyna), summarise, 
+                    threshSubjMean = mean(thresh))
+thresh <- ddply(threshSubj, .(targTpeak,targPeri,maskDyna), summarise,
+                threshMean = mean(threshSubjMean), threshSe=sd(threshSubjMean)/sqrt(length(subj)))
+# resp$trialT <- round(resp$trialT,1)
+# resp$trialT <- as.factor(resp$trialT)
+thresh$maskType <- 'static'
+thresh$maskType[thresh$maskDyna==1] <- 'dynamic'
+thresh$targType <- 'central'
+thresh$targType[thresh$targPeri==1] <- 'peripheral'
+targMaskLevs <- c('static mask\ncentral target', 'static mask\nperipheral target',
+                  'dynamic mask\ncentral target', 'dynamic mask\nperipheral target')
+thresh$targMask[thresh$maskDyna==0 & thresh$targPeri==0] <- targMaskLevs[1]
+thresh$targMask[thresh$maskDyna==0 & thresh$targPeri==1] <- targMaskLevs[2]
+thresh$targMask[thresh$maskDyna==1 & thresh$targPeri==0] <- targMaskLevs[3]
+thresh$targMask[thresh$maskDyna==1 & thresh$targPeri==1] <- targMaskLevs[4]
+thresh$targMask <- factor(thresh$targMask, levels = targMaskLevs[c(2,1,3,4)])
+head(thresh)
+```
+
+```{r, fig.height=3, fig.width=5}
+dodge <- position_dodge(width=0.0)
+p <- ggplot(thresh, aes(x=targTpeak, y=threshMean, colour=maskType, linetype=targType,
+#                        group=resp,
+                        ymin=threshMean-threshSe, ymax=threshMean+threshSe)) +
+    geom_point(position=dodge, size=1, alpha=alpha) +
+    geom_line(position=dodge, alpha=alpha) +
+    geom_linerange(position=dodge, show.legend=F, alpha=alpha, linetype=1) +
+    labs(x='Target Peak Time (s)', y='Log Contrast Threshold',
+         colour='\nMask Type', linetype='Target Type') +
+    scale_x_continuous(breaks=unique(thresh$targTpeak)) + 
+    guides(colour=guide_legend(keyheight=.3, default.unit='inch'))
+p <- themefy(p)
+if(!out){plot(p)}else{png('mc2_targTpeak_noDodge.png', width=3.2, height=1.9, units='in', res=600); plot(p); dev.off()}
+```
+
+```{r, fig.height=3, fig.width=5}
+dodge <- position_dodge(width=0.3)
+p <- ggplot(thresh, aes(x=targTpeak, y=threshMean, colour=maskType, linetype=targType,
+#                        group=resp,
+                        ymin=threshMean-threshSe, ymax=threshMean+threshSe)) +
+    geom_point(position=dodge, size=1, alpha=alpha) +
+    geom_line(position=dodge, alpha=alpha) +
+    geom_linerange(position=dodge, show.legend=F, alpha=alpha, linetype=1) +
+    labs(x='Target Peak Time (s)', y='Log Contrast Threshold',
+         colour='\nMask Type', linetype='Target Type') +
+    scale_x_continuous(breaks=unique(thresh$targTpeak)) + 
+    guides(colour=guide_legend(keyheight=.3, default.unit='inch'))
+p <- themefy(p)
+if(!out){plot(p)}else{png('mc2_targTpeak_dodge.png', width=3.2, height=1.9, units='in', res=600); plot(p); dev.off()}
+```
+
+```{r, fig.height=3, fig.width=5}
+dodge <- position_dodge(width=0.1)
+p <- ggplot(thresh, aes(x=targTpeak, y=threshMean, colour=targMask,
+                        ymin=threshMean-threshSe, ymax=threshMean+threshSe)) +
+    geom_point(position=dodge, size=1, alpha=alpha) +
+    geom_line(position=dodge, alpha=alpha) + ylim(-1.55,-1.05) +
+    geom_linerange(position=dodge, show.legend=F, alpha=alpha, linetype=1) +
+    labs(x='Target Peak Time (s)', y='Log Contrast Threshold', colour='Target-Mask') +
+    scale_x_continuous(breaks=unique(thresh$targTpeak)) + 
+    guides(colour=guide_legend(keyheight=.3, default.unit='inch')) +
+    scale_colour_manual(values=cc[c(2,1,6,5)])
+p <- themefy(p)
+if(!out){plot(p)}else{png('mc2_targTpeak_cols.png', width=3.2, height=1.9, units='in', res=600); plot(p); dev.off()}
+```
+
+```{r, fig.height=3, fig.width=5}
+dodge <- position_dodge(width=0.1)
+threshSs <- thresh
+#threshSs[threshSs$targType!='central',] <- NA
+threshSs$alpha <- alpha
+threshSs$alpha[threshSs$targType!='central'] <- 0
+p <- ggplot(threshSs, aes(x=targTpeak, y=threshMean, colour=targMask, alpha=alpha,
+                        ymin=threshMean-threshSe, ymax=threshMean+threshSe)) +
+    geom_point(position=dodge, size=1) +
+    geom_line(position=dodge) + ylim(-1.55,-1.05) +
+    geom_linerange(position=dodge, show.legend=F, linetype=1) +
+    labs(x='Target Peak Time (s)', y='Log Contrast Threshold', colour='Target-Mask') +
+    scale_x_continuous(breaks=unique(thresh$targTpeak)) + scale_alpha(guide='none') +
+    guides(colour=guide_legend(keyheight=.3, default.unit='inch')) +
+    scale_colour_manual(values=cc[c(2,1,6,5)])
+p <- themefy(p)
+if(!out){plot(p)}else{png('mc2_targTpeak_cols-1.png', width=3.2, height=1.9, units='in', res=600); plot(p); dev.off()}
+```
+
+```{r, fig.height=3, fig.width=5}
+if(!out){plot(p)}else{png('mc2_targTpeak_cols-1.png', width=3.0, height=1.9, units='in', res=600); plot(p); dev.off()}
+```
+
+# Analyses
+```{r}
+# Analysis
+#library(lme4)
+#library(lmerTest)
+source(paste(db, 'Prog/R/myFunctions/pvalfn.R', sep=''))
+```
