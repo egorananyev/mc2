@@ -27,7 +27,7 @@ _thisDir = os.path.dirname(os.path.abspath(__file__))
 # ====================================================================================
 ## Initial variables.
 et = 0
-expName = 'mc2_tgT-mcBv2' # can be overwritten through GUI
+expName = 'mc2_tgT-mcBv3'
 # Window circles (specified in degrees of visual angles [dva]):
 #winSz = 7.2 # 5.03; calculated as 5/x=sqrt(2)/2 => x=10/sqrt(2)
 winOffX = 4.25 # 6 # 5.62
@@ -153,27 +153,36 @@ if et:
 
 # ====================================================================================
 # Store info about the experiment session
-expInfo = {u'session': u'', u'participant': u'', u'experiment': expName, u'para': '', u'dom': ''}
-# conditions are 'cent', 'peri', 'dom', or 'test'
+expInfo = {u'session': u'', u'participant': u'', u'experiment': expName, u'para': 'bv3-', u'dom': ''}
+# conditions (paradigms) are 'cent', 'peri', 'dom' [default, i.e. run when left blank], 'test'; also
+# .. bv3-1=maskV, bv3-2=targEcc, bv3-3=targV-cent, bv3-4=targV-peri
 # dom 0 = left, 1 = right, '' = unkown (do the domTest)
 dlg = gui.DlgFromDict(dictionary=expInfo, title='mc2') # dialogue box
 if dlg.OK == False: core.quit()  # user pressed cancel
 timeNow = datetime.now()
 expInfo['time'] = datetime.now().strftime('%Y-%m-%d_%H%M')
-if expInfo['dom'] == '': # do the dominance test:
+# do the dominance test if the paradigm field is left blank or at 'bc3-':
+if expInfo['dom'] == '' and (expInfo['para']=='' or expInfo['para']=='bv3-'): 
     domTest = True
     expPara = 'dom'
 else: # if domTest==False, fixed targEye:
     domTest = False
     expPara = expInfo['para']
+    if expPara=='bv3-1': expPara = 'maskV'
+    elif expPara=='bv3-2': expPara = 'targEcc'
+    elif expPara=='bv3-3': expPara = 'targV-cent'
+    elif expPara=='bv3-4': expPara = 'targV-peri'
+    else:
+        print 'ERROR: experimental condition has an unrecognized input: should be "bv3-" + number 1-4'
+        core.quit()
     domEyeR = int(float(expInfo['dom']))
     targEyeR = 2-(2**domEyeR)
 
 # one has to specify both para & dom for an experiment, and neither for domTest; quit otherwise:
-if not expInfo['para'] == '' and domTest: 
+if not (expInfo['para'] == '' or expInfo['para'] == 'bv3-') and domTest: 
     print 'ERROR: experimental condition is specified, while the eye dominance is not!'
     core.quit()
-elif expInfo['para'] == '' and not domTest:
+elif (expInfo['para'] == '' or expInfo['para'] == 'bv3-') and not domTest:
     print 'ERROR: eye dominance is specified, while the experimental condition is not!'
     core.quit()
 
