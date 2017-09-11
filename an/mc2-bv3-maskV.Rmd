@@ -1,0 +1,411 @@
+---
+title: "Motion clouds rivalry: Target detection"
+author: "Egor Ananyev"
+date: "April 23, 2017"
+output:
+    html_document:
+        toc: true
+---
+
+<style type="text/css">
+body, td{
+  font-family: Cambria;
+}
+code.r{
+  font-family: Inconsolata;
+}
+</style>
+
+# Preparing the data
+
+## Loading the packages and data directories
+```{r set-options, message=F}
+options(width=108)
+out=F
+# The list of subjects, the order of conditions, and the thresholds are derived from Subjects.xlsx
+library(xlsx)
+library(ggplot2)
+library(plyr)
+library(reshape)
+library(matrixStats)
+library(gridExtra)
+library(lme4)
+library(BayesFactor)
+#library(splines)
+db <- '/home/egor/Dropbox/' # on Linux
+db <- '/Users/Egor/Dropbox/' # Windows
+# db <- '~/Dropbox/' # on Mac
+```
+
+## Plot variables
+```{r, message=FALSE, warning=FALSE}
+# theme for plotting:
+alpha <- .7
+themefy <- function(p) {
+    p <- p + theme_bw() + 
+         theme(panel.grid.minor.x=element_blank(), panel.grid.minor.y=element_blank(),
+            axis.text=element_text(size=8), axis.title=element_text(size=9),
+            legend.text=element_text(size=8), legend.title=element_text(size=9),
+            legend.key = element_blank(), legend.margin=margin(t=-.04, unit='in'),
+            legend.background = element_rect(fill='transparent'),
+            plot.title=element_text(face='bold'))
+}
+cc <- c('#e31a1c','#fdbf6f','#a6cee3','#1f78b4','#b2df8a','#33a02c','#fb9a99')
+```
+
+```{r}
+xLab <- 'Target Peak Time (s)'
+yLab <- 'Log Contrast Threshold'
+yLab2 <- 'Normalized Contrast Threshold'
+colLab <- 'Mask Velocity\nBandwidth'
+colLab2 <- 'Mask Velocity Bandwidth'
+colLabType <- 'Mask Type'
+yLim <- c(-1.5, -0.8)
+yLimNorm <- c(-1.3, -0.7)
+dodge <- position_dodge(width=0.1)
+sumFn <- function(ss, subjStr='subj', xStr='targTpeak', grpStr='maskV'){
+    sumSubj <- ddply(ss, c(subjStr, xStr, grpStr), summarise,
+                     mnS=mean(threshMean), se=sd(threshMean)/sqrt(length(threshMean))) #, .drop=F)
+    sumSubjMn <- ddply(ss, c(subjStr), summarise, mnStot=mean(threshMean)) # total mean across conditions per subj
+    sumSubj <- merge(sumSubj, sumSubjMn)
+    sumSubj$normS <- - sumSubj$mnS / sumSubj$mnStot # normalized subject mean
+    sumSubj$seNorm <- NA
+    # sumSubj$mnS[is.na(sumSubj$mnS)] <- 0
+    sumGrp <- ddply(sumSubj, c(xStr, grpStr), summarise,
+                  mn=mean(mnS), se=sd(mnS)/sqrt(length(mnS)),
+                  norm=mean(normS), seNorm=sd(normS)/sqrt(length(normS)))
+    sumGrp$subj <- 'average'
+    sumSubj <- rename(sumSubj, c(mnS='mn',normS='norm'))
+    sumComb <- rbind(sumGrp, subset(sumSubj, select=-mnStot))
+    sumComb$se[is.na(sumComb$se)] <- 0
+    sumComb
+}
+plotAve <- function(pss, subjStr='subj', xStr='targTpeak', grpStr='maskV', 
+                    xlab=xLab, ylab=yLab, collab=colLab, yStr='mn', seStr='se'){
+    pss$yMin <- pss[,yStr] - pss[,seStr]
+    pss$yMax <- pss[,yStr] + pss[,seStr]
+    p <- ggplot(pss, aes_string(x=xStr, y=yStr, colour=grpStr, group=grpStr,
+                            ymin='yMin', ymax='yMax')) +
+        geom_point(position=dodge, size=1, alpha=alpha) + geom_line(position=dodge, alpha=alpha) +
+        scale_x_continuous(breaks=c(.5,1,1.5), labels=c('0.5','1','1.5')) +
+        geom_linerange(position=dodge, show.legend=F, alpha=alpha) +
+        labs(x=xlab, y=ylab, colour=collab) + #ylim(0,1) + 
+        guides(colour=guide_legend(keyheight=.3, default.unit='inch'))
+    p <- themefy(p)
+}
+plotIndiv <- function(pss, subjStr='subj', xStr='targTpeak', grpStr='maskV', 
+                    xlab=xLab, ylab=yLab, collab=colLab2, yStr='mn', seStr='se'){
+    pss$yMin <- pss[,yStr] - pss[,seStr]
+    pss$yMax <- pss[,yStr] + pss[,seStr]
+    p <- ggplot(pss, aes_string(x=xStr, y=yStr, colour=grpStr, group=grpStr,
+                            ymin='yMin', ymax='yMax')) + 
+        facet_wrap( ~ subj, ncol=4) +
+        geom_point(position=dodge, size=1, alpha=alpha) + geom_line(position=dodge, alpha=alpha) +
+        geom_linerange(position=dodge, show.legend=F, alpha=alpha) +
+        scale_x_continuous(breaks=c(.5,1,1.5), labels=c('0.5','1','1.5')) +
+        # scale_y_continuous(breaks=c(0,.25,.5,.75,1), labels=c('0','','0.5','','1'), limits=c(0,1)) +
+        labs(x=xlab, y=ylab, colour=collab) + 
+        guides(colour=guide_legend(keyheight=.3, default.unit='inch'))
+    p <- themefy(p)
+}
+```
+
+## Scaling function
+```{r}
+cent <- function(v){
+    v <- apply(v,2,function(x){
+        x <- x - mean(unique(x))
+        x <- x / max(x)
+    })
+}
+```
+
+## Loading the data
+```{r}
+allDataDir <- paste(db,'Projects/mc/data_bv3/mcBv3_maskV',sep='')
+dataDirs <- dir(allDataDir)
+dataDirs <- dataDirs[grep('maskV',dataDirs)]
+colsOfInt <- c('participant', 'dom', 'session', 'mcBv', 'targTpeak', 'targXoff2', 'stairStart', 
+               'meanRev6')
+df <- data.frame()
+for(curDir in dataDirs){
+    print(curDir)
+    curDf <- read.csv(paste(allDataDir,'/',curDir,'/',curDir,'.csv',sep=''))
+    curDf <- curDf[,colsOfInt]
+    df <- rbind(df, curDf[,colsOfInt])
+}
+ds <- rename(df, c(participant='subj', session='sess', meanRev6='thresh',
+                   mcBv='maskV', targXoff2='targEcc'))
+ds$maskV <- round(ds$maskV * 60 / 35, 1)
+ds$maskV[ds$maskV<0.05] <- 0
+ds$maskType <- 'fast'
+ds$maskType[ds$maskV<5] <- 'slow'
+ds$maskType[ds$maskV<=0.01] <- 'static'
+ds$targEcc <- round(ds$targEcc/35,1)
+ds$targType <- 'foveal'
+ds$targType[ds$targEcc>1] <- 'perifoveal'
+head(ds)
+```
+
+## Staircase averages & convenience variables
+
+### By velocity bandwidth
+```{r}
+thresh <- ddply(ds, .(subj,dom,sess,maskV,targTpeak,targEcc,targType), summarise,
+                threshMean = mean(thresh))
+thresh$maskV <- factor(thresh$maskV)
+```
+
+### By mask type
+```{r}
+threshType <- ddply(ds, .(subj,dom,sess,maskType,targTpeak,targEcc,targType), summarise,
+                    threshMean = mean(thresh))
+```
+
+### Centered data set
+```{r}
+dsc <- ds
+centCols <- c('dom','targTpeak','stairStart','targEcc')
+dsc[,centCols] <- cent(dsc[,centCols])
+dsc$maskV <- (dsc$maskV / max(dsc$maskV)) #*2 - 1
+dsc$subj <- as.factor(dsc$subj)
+dsc$slowC <- -1 # scaled and centered variable [-1,1]
+dsc$slowC[dsc$maskType=='slow'] <- 1 #0
+dsc$slowC[dsc$maskType=='fast'] <- 999
+head(dsc)
+```
+
+# Plotting across mask bandwidths
+
+## Foveal targets
+```{r}
+ss <- sumFn(thresh[thresh$targType=='foveal',])
+ssAve <- ss[ss$subj=='average',]
+ssIndiv <- ss[ss$subj!='average',]
+pCent <- themefy(plotAve(ssAve)) + ylim(yLim)
+pCentNorm <- themefy(plotAve(ssAve, ylab=yLab2, yStr='norm', seStr='seNorm')) + 
+    ylim(yLimNorm)
+```
+
+### Individual plots
+```{r, fig.height=6, fig.width=7}
+(plotIndiv(ssIndiv))
+```
+
+### Normalized individual plots
+```{r, fig.height=6, fig.width=7}
+(plotIndiv(ssIndiv, ylab=yLab2, yStr='norm', seStr='seNorm'))
+```
+
+## Perifoveal targets
+```{r, fig.height=3, fig.width=7}
+ss <- sumFn(thresh[thresh$targType=='perifoveal',])
+ssAve <- ss[ss$subj=='average',]
+ssIndiv <- ss[ss$subj!='average',]
+pPeri <- themefy(plotAve(ssAve)) + ylim(yLim)
+pPeriNorm <- themefy(plotAve(ssAve, ylab=yLab2, yStr='norm', seStr='seNorm')) +
+    ylim(yLimNorm)
+```
+
+### Individual plots
+```{r, fig.height=6, fig.width=7}
+(plotIndiv(ssIndiv))
+```
+
+### Normalized individual plots
+```{r, fig.height=6, fig.width=7}
+(plotIndiv(ssIndiv, ylab=yLab2, yStr='norm', seStr='seNorm'))
+```
+
+## Group plots
+```{r}
+w <- .56
+```
+
+### Non-normalized
+```{r, fig.height=2.4, fig.width=7}
+grid.arrange(pCent + theme(legend.position='none') + ggtitle('a: foveal target'),
+             pPeri + ggtitle('b: perifoveal target'),
+             ncol=2, widths=c((1-w)/2,w/2))
+```
+
+### Normalized
+```{r, fig.height=2.4, fig.width=7}
+grid.arrange(pCentNorm + theme(legend.position='none') + ggtitle('a: foveal target'),
+             pPeriNorm + ggtitle('b: perifoveal target'),
+             ncol=2, widths=c((1-w)/2,w/2))
+```
+
+## Analyses
+
+
+
+### GLM
+```{r}
+summary(lmer(thresh ~ dom + stairStart + sess + maskV * targTpeak * targEcc + (1|subj), 
+             data=dsc))
+```
+
+### BF
+
+#### Mask velocity
+```{r}
+bfBase <- lmBF(thresh ~ subj + dom + stairStart + sess, data=dsc, whichRandom='subj')
+bfTest <- lmBF(thresh ~ subj + dom + stairStart + sess + maskV, data=dsc, 
+               whichRandom='subj')
+as.vector(bfTest / bfBase)
+```
+
+#### Target onset
+```{r}
+bfBase <- lmBF(thresh ~ subj + dom + stairStart + sess, data=dsc, whichRandom='subj')
+bfTest <- lmBF(thresh ~ subj + dom + stairStart + sess + targTpeak, data=dsc, 
+               whichRandom='subj')
+as.vector(bfTest / bfBase)
+```
+
+#### Target eccentricity
+```{r}
+bfBase <- lmBF(thresh ~ subj + dom + stairStart + sess, data=dsc, whichRandom='subj')
+bfTest <- lmBF(thresh ~ subj + dom + stairStart + sess + targEcc, data=dsc, 
+               whichRandom='subj')
+as.vector(bfTest / bfBase)
+```
+
+#### maskV X targT
+```{r}
+bfBase <- lmBF(thresh ~ subj + dom + stairStart + sess + maskV + targTpeak + targEcc, 
+               data=dsc, whichRandom='subj')
+bfTest <- lmBF(thresh ~ subj + dom + stairStart + sess + maskV + targTpeak + targEcc + 
+                   maskV*targTpeak, 
+               data=dsc, whichRandom='subj')
+as.vector(bfTest / bfBase)
+```
+
+#### targT X targEcc
+```{r}
+bfTest <- lmBF(thresh ~ subj + dom + stairStart + sess + maskV + targTpeak + targEcc + 
+                   targEcc*targTpeak, 
+               data=dsc, whichRandom='subj')
+as.vector(bfTest / bfBase)
+```
+
+#### maskV X targEcc
+```{r}
+bfTest <- lmBF(thresh ~ subj + dom + stairStart + sess + maskV + targTpeak + targEcc + 
+                   targEcc*maskV, 
+               data=dsc, whichRandom='subj')
+as.vector(bfTest / bfBase)
+```
+
+#### maskV X targEcc X targT
+```{r}
+bfBase <- lmBF(thresh ~ subj + dom + stairStart + sess + maskV + targTpeak + targEcc, #+
+                   # targEcc*maskV + targEcc*targTpeak + targTpeak*maskV, 
+               data=dsc, whichRandom='subj')
+bfTest <- lmBF(thresh ~ subj + dom + stairStart + sess + maskV + targTpeak + targEcc + 
+                   # targEcc*maskV + targEcc*targTpeak + targTpeak*maskV +
+                   targEcc*maskV*targTpeak, 
+               data=dsc, whichRandom='subj')
+as.vector(bfTest / bfBase)
+```
+
+#### maskV*targEcc*targTpeak
+```{r}
+bfBase <- lmBF(thresh ~ subj + dom + stairStart + sess + maskV + targTpeak + targEcc + 
+                   targTpeak*targEcc + maskV*targTpeak + maskV*targEcc*targTpeak, 
+               data=dsc, whichRandom='subj')
+bfTest <- lmBF(thresh ~ subj + dom + stairStart + sess + maskV + targTpeak + targEcc + 
+                   targTpeak*targEcc + maskV*targTpeak + #+ maskV*targEcc*targTpeak +
+               maskV*targEcc, 
+               data=dsc, whichRandom='subj')
+as.vector(bfTest / bfBase)
+```
+
+# Plotting across mask types
+
+## Foveal targets
+```{r}
+ss <- sumFn(threshType[threshType$targType=='foveal',], grpStr='maskType')
+ss$maskType <- ordered(ss$maskType, levels=c('static','slow','fast'))
+ssAve <- ss[ss$subj=='average',]
+ssIndiv <- ss[ss$subj!='average',]
+pCentType <- themefy(plotAve(ssAve, grpStr='maskType', collab=colLabType)) + ylim(yLim)
+pCentNormType <- themefy(plotAve(ssAve, ylab=yLab2, yStr='norm', seStr='seNorm',
+                                 grpStr='maskType', collab=colLabType)) + ylim(yLimNorm)
+```
+
+### Individual plots
+```{r, fig.height=6, fig.width=7}
+(plotIndiv(ssIndiv, grpStr='maskType', collab=colLabType))
+```
+
+### Normalized individual plots
+```{r, fig.height=6, fig.width=7}
+(plotIndiv(ssIndiv, ylab=yLab2, yStr='norm', seStr='seNorm', grpStr='maskType', collab=colLabType))
+```
+
+## Perifoveal targets
+```{r, fig.height=3, fig.width=7}
+ss <- sumFn(threshType[threshType$targType=='perifoveal',], grpStr='maskType')
+ss$maskType <- ordered(ss$maskType, levels=c('static','slow','fast'))
+ssAve <- ss[ss$subj=='average',]
+ssIndiv <- ss[ss$subj!='average',]
+pPeriType <- themefy(plotAve(ssAve, grpStr='maskType', collab=colLabType)) + ylim(yLim)
+pPeriNormType <- themefy(plotAve(ssAve, ylab=yLab2, yStr='norm', seStr='seNorm', 
+                             grpStr='maskType', collab=colLabType)) + ylim(yLimNorm)
+```
+
+### Individual plots
+```{r, fig.height=6, fig.width=7}
+(plotIndiv(ssIndiv, grpStr='maskType', collab=colLabType))
+```
+
+### Normalized individual plots
+```{r, fig.height=6, fig.width=7}
+(plotIndiv(ssIndiv, ylab=yLab2, yStr='norm', seStr='seNorm', grpStr='maskType', collab=colLabType))
+```
+
+## Group plots
+
+### Non-normalized
+```{r, fig.height=2.4, fig.width=7}
+grid.arrange(pCentType + theme(legend.position='none') + ggtitle('a: foveal target'),
+             pPeriType + ggtitle('b: perifoveal target'),
+             ncol=2, widths=c((1-w)/2,w/2))
+```
+
+### Normalized
+```{r, fig.height=2.4, fig.width=7}
+grid.arrange(pCentNormType + theme(legend.position='none') + ggtitle('a: foveal target'),
+             pPeriNormType + ggtitle('b: perifoveal target'),
+             ncol=2, widths=c((1-w)/2,w/2))
+```
+
+## Analyses
+
+### GLM
+```{r}
+ssc <- dsc[dsc$maskType!='fast',]
+summary(lmer(thresh ~ dom + stairStart + sess + slowC * targTpeak * targEcc + 
+                 (1|subj), data=ssc))
+```
+
+### BF
+
+#### Mask type
+```{r}
+bfBase <- lmBF(thresh ~ subj + dom + stairStart + sess, data=ssc, whichRandom='subj')
+bfTest <- lmBF(thresh ~ subj + dom + stairStart + sess + slowC, data=ssc, 
+               whichRandom='subj')
+as.vector(bfTest / bfBase)
+```
+
+#### maskTypeS X targEcc
+```{r}
+bfBase <- lmBF(thresh ~ subj + dom + stairStart + sess + slowC + targTpeak + 
+                   targEcc, data=ssc, whichRandom='subj')
+bfTest <- lmBF(thresh ~ subj + dom + stairStart + sess + slowC + targTpeak + 
+                   targEcc + targEcc*slowC, data=ssc, whichRandom='subj')
+as.vector(bfTest / bfBase)
+```

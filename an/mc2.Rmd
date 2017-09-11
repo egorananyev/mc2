@@ -44,10 +44,9 @@ themefy <- function(p) {
             axis.text=element_text(size=8), axis.title=element_text(size=9),
             legend.text=element_text(size=8), legend.title=element_text(size=9),
             legend.key = element_blank(), legend.margin=margin(t=-.04, unit='in'),
-            legend.background = element_rect(fill='transparent'))
+            legend.background = element_rect(fill='transparent'),
+            plot.title=element_text(face='bold'))
 }
-# cc <- c('#a6cee3','#1f78b4','#b2df8a','#33a02c','#fb9a99','#e31a1c','#fdbf6f')
-# cc <- c('#fed976','#c7e9b4','#7fcdbb','#41b6c4','#1d91c0','#225ea8','#0c2c84')
 cc <- c('#e31a1c','#fdbf6f','#a6cee3','#1f78b4','#b2df8a','#33a02c','#fb9a99')
 ```
 
@@ -156,12 +155,4 @@ if(!out){plot(p)}else{png('mc2_targTpeak_cols-1.png', width=3.2, height=1.9, uni
 
 ```{r, fig.height=3, fig.width=5}
 if(!out){plot(p)}else{png('mc2_targTpeak_cols-1.png', width=3.0, height=1.9, units='in', res=600); plot(p); dev.off()}
-```
-
-# Analyses
-```{r}
-# Analysis
-#library(lme4)
-#library(lmerTest)
-source(paste(db, 'Prog/R/myFunctions/pvalfn.R', sep=''))
 ```

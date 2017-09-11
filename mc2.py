@@ -31,7 +31,7 @@ expName = 'mc2_tgT-mcBv3'
 # Window circles (specified in degrees of visual angles [dva]):
 #winSz = 7.2 # 5.03; calculated as 5/x=sqrt(2)/2 => x=10/sqrt(2)
 winOffX = 4.25 # 6 # 5.62
-winOffY = 3.5 # 5.5 (3.5cm ~= 124px)
+winOffY = 2.5 # 5.5 (3.5cm ~= 124px)
 winThickness = 2 # in pixels
 # Timing variables:
 ISIduration = .25
@@ -168,10 +168,12 @@ if expInfo['dom'] == '' and (expInfo['para']=='' or expInfo['para']=='bv3-'):
 else: # if domTest==False, fixed targEye:
     domTest = False
     expPara = expInfo['para']
-    if expPara=='bv3-1': expPara = 'maskV'
-    elif expPara=='bv3-2': expPara = 'targEcc'
-    elif expPara=='bv3-3': expPara = 'targV-cent'
-    elif expPara=='bv3-4': expPara = 'targV-peri'
+    if expPara=='bv3-1': expPara = 'maskV-cent'
+    elif expPara=='bv3-2': expPara = 'maskV-peri'
+    elif expPara=='bv3-3': expPara = 'targEcc-stat'
+    elif expPara=='bv3-4': expPara = 'targEcc-dyna'
+    elif expPara=='bv3-5': expPara = 'targV-cent'
+    elif expPara=='bv3-6': expPara = 'targV-peri'
     else:
         print 'ERROR: experimental condition has an unrecognized input: should be "bv3-" + number 1-4'
         core.quit()
@@ -187,7 +189,7 @@ elif (expInfo['para'] == '' or expInfo['para'] == 'bv3-') and not domTest:
     core.quit()
 
 # Setup the Window
-win = visual.Window(size=dr, fullscr=True, screen=0, allowGUI=False, 
+win = visual.Window(size=dr, fullscr=False, screen=1, allowGUI=False, 
       allowStencil=False, color='grey', blendMode='avg', useFBO=True, units='pix')
 # store frame rate of monitor if we can measure it successfully:
 frameRate=win.getActualFrameRate()
@@ -231,7 +233,7 @@ if et:
 # Data file name stem = absolute path + name; later add .psyexp, .csv, .log, etc
 if precompileMode:
     precompiledDir = '..' + os.sep + 'precompiledMCs'
-dataDir = '..' + os.sep + 'data'
+dataDir = '..' + os.sep + 'data_bv3'
 fileName = '%s_%s_p%s_s%s_%s' %(expName, expPara, expInfo['participant'], expInfo['session'],
     expInfo['time'])
 filePath = dataDir + os.sep + fileName
