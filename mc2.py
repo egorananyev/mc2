@@ -176,6 +176,7 @@ else: # if domTest==False, fixed targEye:
     elif expPara=='bv3-6': expPara = 'targV-peri'
     elif expPara=='bv3-7': expPara = 'targV-stat'
     elif expPara=='bv3-8': expPara = 'targV-dyna'
+    elif expPara=='bv3-9': expPara = 'targV-centOnly'
     else:
         print 'ERROR: experimental condition has an unrecognized input: should be "bv3-" + number 1-4'
         core.quit()
