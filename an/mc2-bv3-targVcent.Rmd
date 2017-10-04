@@ -1,0 +1,203 @@
+---
+title: "Motion clouds rivalry: Target detection - Target Eccentricity"
+author: "Egor Ananyev"
+date: "August 25, 2017"
+output:
+    html_document:
+        toc: true
+---
+
+<style type="text/css">
+body, td{
+  font-family: Cambria;
+}
+code.r{
+  font-family: Inconsolata;
+}
+</style>
+
+# Preparing the data
+
+## Loading the packages and data directories
+```{r set-options, message=F}
+options(width=108)
+out=F
+# The list of subjects, the order of conditions, and the thresholds are derived from Subjects.xlsx
+library(xlsx)
+library(ggplot2)
+library(plyr)
+library(reshape)
+library(matrixStats)
+library(gridExtra)
+library(lme4)
+library(BayesFactor)
+#library(splines)
+db <- '/home/egor/Dropbox/' # on Linux
+db <- '/Users/Egor/Dropbox/' # Windows
+# db <- '~/Dropbox/' # on Mac
+```
+
+## Plot variables
+```{r, message=FALSE, warning=FALSE}
+# theme for plotting:
+xLab <- 'Target Peak Time (s)'
+yLab <- 'Log Contrast Threshold'
+yLab2 <- 'Normalized Contrast Threshold'
+colLab <- expression(paste('\nTarget\nVelocity (', degree, '/s)', sep=''))
+# colLab2 <- expression(paste('Target Eccentricity (', degree, ')', sep=''))
+# colLabType <- 'Mask Type'
+yLim <- c(-1.8,-0.6)
+yLimNorm <- c(-1.4,-0.6)
+dodge <- position_dodge(width=0.1)
+alpha <- .7
+themefy <- function(p) {
+    p <- p + theme_bw() + 
+         theme(panel.grid.minor.x=element_blank(), panel.grid.minor.y=element_blank(),
+            axis.text=element_text(size=8), axis.title=element_text(size=9),
+            legend.text=element_text(size=8), legend.title=element_text(size=9),
+            legend.key = element_blank(), legend.margin=margin(t=-.04, unit='in'),
+            legend.background = element_rect(fill='transparent'),
+            plot.title=element_text(face='bold'))
+}
+cc <- c('#e31a1c','#fdbf6f','#a6cee3','#1f78b4','#b2df8a','#33a02c','#fb9a99')
+```
+
+## Plot functions
+```{r}
+sumFn <- function(ss, subjStr='subj', xStr='targTpeak', grpStr='targV'){
+    sumSubj <- ddply(ss, c(subjStr, xStr, grpStr), summarise,
+                     mnS=mean(threshMean), se=sd(threshMean)/sqrt(length(threshMean))) #, .drop=F)
+    sumSubjMn <- ddply(ss, c(subjStr), summarise, mnStot=mean(threshMean)) # total mean across conditions per subj
+    sumSubj <- merge(sumSubj, sumSubjMn)
+    sumSubj$normS <- - sumSubj$mnS / sumSubj$mnStot # normalized subject mean
+    sumSubj$seNorm <- NA
+    # sumSubj$mnS[is.na(sumSubj$mnS)] <- 0
+    sumGrp <- ddply(sumSubj, c(xStr, grpStr), summarise,
+                  mn=mean(mnS), se=sd(mnS)/sqrt(length(mnS)),
+                  norm=mean(normS), seNorm=sd(normS)/sqrt(length(normS)))
+    sumGrp$subj <- 'average'
+    sumSubj <- rename(sumSubj, c(mnS='mn',normS='norm'))
+    sumComb <- rbind(sumGrp, subset(sumSubj, select=-mnStot))
+    sumComb$se[is.na(sumComb$se)] <- 0
+    sumComb
+}
+plotAve <- function(pss, subjStr='subj', xStr='targTpeak', grpStr='targV', 
+                    xlab=xLab, ylab=yLab, collab=colLab, yStr='mn', seStr='se'){
+    pss$yMin <- pss[,yStr] - pss[,seStr]
+    pss$yMax <- pss[,yStr] + pss[,seStr]
+    pss[,grpStr] <- factor(pss[,grpStr])
+    p <- ggplot(pss, aes_string(x=xStr, y=yStr, colour=grpStr, group=grpStr,
+                            ymin='yMin', ymax='yMax')) +
+        geom_point(position=dodge, size=1, alpha=alpha) + geom_line(position=dodge, alpha=alpha) +
+        scale_x_continuous(breaks=c(.5,1,1.5), labels=c('0.5','1','1.5')) +
+        geom_linerange(position=dodge, show.legend=F, alpha=alpha) +
+        labs(x=xlab, y=ylab, colour=collab) + #ylim(0,1) + 
+        guides(colour=guide_legend(keyheight=.3, default.unit='inch'))
+    p <- themefy(p)
+}
+```
+
+## Scaling function
+```{r}
+cent <- function(v){
+    v <- apply(v,2,function(x){
+        x <- x - mean(unique(x))
+        x <- x / max(x)
+    })
+}
+```
+
+## Loading the data
+```{r}
+allDataDir <- paste(db,'Projects/mc/data_bv3/mcBv3_maskV',sep='')
+dataDirs <- dir(allDataDir)
+dataDirs <- dataDirs[grep('targV-centOnly',dataDirs)]
+colsOfInt <- c('participant', 'dom', 'session', 'mcBv', 'targTpeak', 'targXoff2', 
+               'targV', 'stairStart', 'meanRev6')
+df <- data.frame()
+for(curDir in dataDirs){
+    print(curDir)
+    curDf <- read.csv(paste(allDataDir,'/',curDir,'/',curDir,'.csv',sep=''))
+    curDf <- curDf[,colsOfInt]
+    df <- rbind(df, curDf[,colsOfInt])
+}
+dataDirs <- dir(allDataDir)
+dataDirs <- dataDirs[grep('maskV',dataDirs)]
+for(curDir in dataDirs){
+    print(curDir)
+    curDf <- read.csv(paste(allDataDir,'/',curDir,'/',curDir,'.csv',sep=''))
+    curDf <- curDf[,colsOfInt]
+    curDf <- curDf[curDf$mcBv==0.01 | curDf$mcBv==9.6,]
+    df <- rbind(df, curDf[,colsOfInt])
+}
+ds <- rename(df, c(participant='subj', session='sess', meanRev6='thresh',
+                   mcBv='maskV', targXoff2='targEcc'))
+ds$targEcc <- round(ds$targEcc / 35,1)
+ds$targV <- round(ds$targV / 3.5,1)
+ds$maskType <- 'dynamic'
+ds$maskV <- round(ds$maskV * 60 / 35, 1)
+ds$maskV[ds$maskV<0.05] <- 0
+ds$maskType[ds$maskV<=0.01] <- 'static'
+head(ds)
+```
+
+## Transformed data sets
+
+### By target 
+```{r}
+thresh <- ddply(ds, .(subj,dom,sess,maskV,maskType,targTpeak,targV), 
+                summarise, threshMean = mean(thresh))
+head(thresh)
+```
+
+### Centered data set
+```{r}
+dsc <- ds
+centCols <- c('dom','targTpeak','stairStart','maskV','targV')
+dsc[,centCols] <- cent(dsc[,centCols])
+# dsc$maskV <- (dsc$maskV / max(dsc$maskV)) #*2 - 1
+dsc$maskV_c <- (dsc$maskV + 1) / 2
+dsc$targV_c <- (dsc$targV + 1) / 2
+dsc$targTpeak_c <- (dsc$targTpeak + 1) / 2
+dsc$subj <- as.factor(dsc$subj)
+head(dsc)
+```
+
+# Plotting across target eccentricities
+
+## Static mask
+```{r}
+ss <- sumFn(thresh[thresh$maskType=='static',])
+ssAve <- ss[ss$subj=='average',]
+ssIndiv <- ss[ss$subj!='average',]
+pStat <- themefy(plotAve(ssAve)) + ylim(yLim)
+pStatNorm <- themefy(plotAve(ssAve, ylab=yLab2, yStr='norm', seStr='seNorm')) + 
+    ylim(yLimNorm)
+```
+
+## Dynamic targets
+```{r}
+ss <- sumFn(thresh[thresh$maskType=='dynamic',])
+ssAve <- ss[ss$subj=='average',]
+ssIndiv <- ss[ss$subj!='average',]
+pDyna <- themefy(plotAve(ssAve)) + ylim(yLim)
+pDynaNorm <- themefy(plotAve(ssAve, ylab=yLab2, yStr='norm', seStr='seNorm')) + 
+    ylim(yLimNorm)
+```
+
+## Group plots
+```{r}
+w <- .56
+```
+
+### Non-normalized
+```{r, fig.height=2.4, fig.width=7}
+grid.arrange(pStat + theme(legend.position='none') + ggtitle('a: static mask'),
+             pDyna + ggtitle('b: dynamic mask'), ncol=2, widths=c((1-w)/2,w/2))
+```
+
+### Normalized
+```{r, fig.height=2.4, fig.width=7}
+grid.arrange(pStatNorm + theme(legend.position='none') + ggtitle('a: static mask'),
+             pDynaNorm + ggtitle('b: dynamic mask'), ncol=2, widths=c((1-w)/2,w/2))
+```

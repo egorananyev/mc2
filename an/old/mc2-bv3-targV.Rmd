@@ -41,7 +41,6 @@ db <- '/Users/Egor/Dropbox/' # Windows
 ```{r, message=FALSE, warning=FALSE}
 # theme for plotting:
 alpha <- .7
-w <- .56 # proportion width in group plots
 themefy <- function(p) {
     p <- p + theme_bw() + 
          theme(panel.grid.minor.x=element_blank(), panel.grid.minor.y=element_blank(),
@@ -57,6 +56,7 @@ cc <- c('#e31a1c','#fdbf6f','#a6cee3','#1f78b4','#b2df8a','#33a02c','#fb9a99')
 ```{r}
 xLab <- 'Target Peak Time (s)'
 yLab <- 'Log Contrast Threshold'
+yLab2 <- 'Normalized Contrast Threshold'
 colLab <- expression(paste('\nTarget\nVelocity (', degree, '/s)', sep=''))
 # colLab2 <- expression(paste('Target Eccentricity (', degree, ')', sep=''))
 # colLabType <- 'Mask Type'
@@ -156,8 +156,8 @@ head(ds)
 
 ### By target 
 ```{r}
-thresh <- ddply(ds, .(subj,dom,sess,maskV,maskType,targTpeak,targEcc,targV,targType,
-                      cond,condSplit), summarise, threshMean = mean(thresh))
+thresh <- ddply(ds, .(subj,dom,sess,maskV,maskType,targTpeak,targEcc,targV,targType), 
+                summarise, threshMean = mean(thresh))
 head(thresh)
 ```
 
@@ -183,11 +183,18 @@ ss <- sumFn(thresh[(thresh$maskType=='static' & thresh$targType=='central'),])
 ssAve <- ss[ss$subj=='average',]
 ssIndiv <- ss[ss$subj!='average',]
 pStatCent <- themefy(plotAve(ssAve)) + ylim(yLim)
+pStatCentNorm <- themefy(plotAve(ssAve, ylab=yLab2, yStr='norm', seStr='seNorm')) + 
+    ylim(yLimNorm)
 ```
 
 ### Individual plots
 ```{r, fig.height=6, fig.width=7}
 (plotIndiv(ssIndiv))
+```
+
+### Normalized individual plots
+```{r, fig.height=6, fig.width=7}
+(plotIndiv(ssIndiv, ylab=yLab2, yStr='norm', seStr='seNorm'))
 ```
 
 ## Perifoveal targets and static mask
@@ -196,11 +203,18 @@ ss <- sumFn(thresh[thresh$maskType=='static' & thresh$targType=='peripheral',])
 ssAve <- ss[ss$subj=='average',]
 ssIndiv <- ss[ss$subj!='average',]
 pStatPeri <- themefy(plotAve(ssAve)) + ylim(yLim)
+pStatPeriNorm <- themefy(plotAve(ssAve, ylab=yLab2, yStr='norm', seStr='seNorm')) +
+    ylim(yLimNorm)
 ```
 
 ### Individual plots
 ```{r, fig.height=6, fig.width=7}
 (plotIndiv(ssIndiv))
+```
+
+### Normalized individual plots
+```{r, fig.height=6, fig.width=7}
+(plotIndiv(ssIndiv, ylab=yLab2, yStr='norm', seStr='seNorm'))
 ```
 
 ## Foveal targets & dynamic mask
@@ -209,11 +223,18 @@ ss <- sumFn(thresh[(thresh$maskType=='dynamic' & thresh$targType=='central'),])
 ssAve <- ss[ss$subj=='average',]
 ssIndiv <- ss[ss$subj!='average',]
 pDynaCent <- themefy(plotAve(ssAve)) + ylim(yLim)
+pDynaCentNorm <- themefy(plotAve(ssAve, ylab=yLab2, yStr='norm', seStr='seNorm')) + 
+    ylim(yLimNorm)
 ```
 
 ### Individual plots
 ```{r, fig.height=6, fig.width=7}
 (plotIndiv(ssIndiv))
+```
+
+### Normalized individual plots
+```{r, fig.height=6, fig.width=7}
+(plotIndiv(ssIndiv, ylab=yLab2, yStr='norm', seStr='seNorm'))
 ```
 
 ## Perifoveal targets and dynamic mask
@@ -222,6 +243,8 @@ ss <- sumFn(thresh[thresh$maskType=='dynamic' & thresh$targType=='peripheral',])
 ssAve <- ss[ss$subj=='average',]
 ssIndiv <- ss[ss$subj!='average',]
 pDynaPeri <- themefy(plotAve(ssAve)) + ylim(yLim)
+pDynaPeriNorm <- themefy(plotAve(ssAve, ylab=yLab2, yStr='norm', seStr='seNorm')) +
+    ylim(yLimNorm)
 ```
 
 ### Individual plots
@@ -229,7 +252,17 @@ pDynaPeri <- themefy(plotAve(ssAve)) + ylim(yLim)
 (plotIndiv(ssIndiv))
 ```
 
+### Normalized individual plots
+```{r, fig.height=6, fig.width=7}
+(plotIndiv(ssIndiv, ylab=yLab2, yStr='norm', seStr='seNorm'))
+```
+
 ## Group plots
+```{r}
+w <- .56
+```
+
+### Non-normalized
 ```{r, fig.height=4.8, fig.width=7}
 grid.arrange(pStatCent + #theme(legend.position='none') + 
                  ggtitle('a: static mask, central target'),
@@ -239,58 +272,14 @@ grid.arrange(pStatCent + #theme(legend.position='none') +
              ncol=2, nrow=2) #widths=c((1-w)/2,w/2))
 ```
 
-### Split by maskV
+### Normalized
 ```{r, fig.height=4.8, fig.width=7}
-ss <- sumFn(thresh[(thresh$maskType=='static' & thresh$targType=='central' & 
-                        thresh$condSplit=='mask'),])
-ssAve <- ss[ss$subj=='average',]
-pStatCent <- themefy(plotAve(ssAve)) + ylim(yLim)
-ss <- sumFn(thresh[(thresh$maskType=='dynamic' & thresh$targType=='central' & 
-                        thresh$condSplit=='mask'),])
-ssAve <- ss[ss$subj=='average',]
-pDynaCent <- themefy(plotAve(ssAve)) + ylim(yLim)
-ss <- sumFn(thresh[(thresh$maskType=='static' & thresh$targType=='peripheral' & 
-                        thresh$condSplit=='mask'),])
-ssAve <- ss[ss$subj=='average',]
-pStatPeri <- themefy(plotAve(ssAve)) + ylim(yLim)
-ss <- sumFn(thresh[(thresh$maskType=='dynamic' & thresh$targType=='peripheral' & 
-                        thresh$condSplit=='mask'),])
-ssAve <- ss[ss$subj=='average',]
-pDynaPeri <- themefy(plotAve(ssAve)) + ylim(yLim)
-grid.arrange(pStatCent + #theme(legend.position='none') + 
-                 ggtitle('a: static mask, central target'),
-             pDynaCent + ggtitle('b: dynamic mask, central target'),
-             pStatPeri + ggtitle('c: static mask, peripheral target'),
-             pDynaPeri + ggtitle('d: dynamic mask, peripheral target'),
-             ncol=2, nrow=2) #widths=c((1-w)/2,w/2))
+grid.arrange(pStatCentNorm + ggtitle('a: static mask, central target'),
+             pDynaCentNorm + ggtitle('b: dynamic mask, central target'),
+             pStatPeriNorm + ggtitle('c: static mask, peripheral target'),
+             pDynaPeriNorm + ggtitle('d: dynamic mask, peripheral target'),
+             ncol=2, nrow=2)
 ```
-
-### Split by targEcc
-```{r, fig.height=4.8, fig.width=7}
-ss <- sumFn(thresh[(thresh$maskType=='static' & thresh$targType=='central' & 
-                        thresh$condSplit=='targ'),])
-ssAve <- ss[ss$subj=='average',]
-pStatCent <- themefy(plotAve(ssAve)) + ylim(yLim)
-ss <- sumFn(thresh[(thresh$maskType=='dynamic' & thresh$targType=='central' & 
-                        thresh$condSplit=='targ'),])
-ssAve <- ss[ss$subj=='average',]
-pDynaCent <- themefy(plotAve(ssAve)) + ylim(yLim)
-ss <- sumFn(thresh[(thresh$maskType=='static' & thresh$targType=='peripheral' & 
-                        thresh$condSplit=='targ'),])
-ssAve <- ss[ss$subj=='average',]
-pStatPeri <- themefy(plotAve(ssAve)) + ylim(yLim)
-ss <- sumFn(thresh[(thresh$maskType=='dynamic' & thresh$targType=='peripheral' & 
-                        thresh$condSplit=='targ'),])
-ssAve <- ss[ss$subj=='average',]
-pDynaPeri <- themefy(plotAve(ssAve)) + ylim(yLim)
-grid.arrange(pStatCent + #theme(legend.position='none') + 
-                 ggtitle('a: static mask, central target'),
-             pDynaCent + ggtitle('b: dynamic mask, central target'),
-             pStatPeri + ggtitle('c: static mask, peripheral target'),
-             pDynaPeri + ggtitle('d: dynamic mask, peripheral target'),
-             ncol=2, nrow=2) #widths=c((1-w)/2,w/2))
-```
-
 
 <!-- <!-- -->
 <!-- # Analyses -->
