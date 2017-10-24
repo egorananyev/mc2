@@ -13,8 +13,7 @@ import pandas as pd
 from datetime import datetime
 import os, shutil, itertools, copy  # handy system and path functions
 import pyglet
-#import MotionClouds as mc
-
+from scipy import misc
 
 # Initiating the keyboard
 from psychopy.iohub import launchHubServer
@@ -26,8 +25,7 @@ _thisDir = os.path.dirname(os.path.abspath(__file__))
 
 # ====================================================================================
 ## Initial variables.
-et = 0
-expName = 'mc2_tgT-mcBv3'
+expName = 'mc2_cfs'
 # Window circles (specified in degrees of visual angles [dva]):
 #winSz = 7.2 # 5.03; calculated as 5/x=sqrt(2)/2 => x=10/sqrt(2)
 winOffX = 4.25 # 6 # 5.62
@@ -36,8 +34,6 @@ winThickness = 2 # in pixels
 # Timing variables:
 ISIduration = .25
 fixSz = .15
-# MCs:
-precompileMode = 1 # get the precompiled MCs
 grtSize = 256 # size of 256 is 71mm, or 7.2dova
 #contrSteps = [1.3,1.3,.9,.9,.6,.6,.4,.4,.3,.3] #10
 #contrSteps = [.2,.2,.1,.1,.05,.05,.02,.02,.01,.01,.005,.005] #10
@@ -74,129 +70,45 @@ def dg2px(dg,cm2px=cm2px,dg2cm=dg2cm):
 
 # ====================================================================================
 # Converting win dimensions to pixels
-#winSz = dg2px(winSz)
 winSz = grtSize + 2
 winOffX = dg2px(winOffX)
 winOffY = dg2px(winOffY)
 fixSz = dg2px(fixSz)
 posCentL = [-winOffX, winOffY]
 posCentR = [winOffX, winOffY]
-#print winSz 
-#print posCentL 
-#print posCentR 
 
 # ====================================================================================
-# Eye tracking initialization
-
-if et:
-    import pylink as pl
-    #cp = (0.4,0.4) # calibration proportion
-    cd = 32
-
-    eyeLink = ("100.1.1.1")
-
-    displayInfo = pl.getDisplayInformation()
-    print displayInfo.width, displayInfo.height
-    screenCenter = (int(dr[0]/2), int(dr[1]/2))
-    calScreenCenter = (int(screenCenter[0]+winOffX),
-                    int(screenCenter[1]-winOffY))
-    calTargDist = int(winSz/3)
-    calTarg1 = calScreenCenter
-    calTarg2 = (int(calScreenCenter[0]-calTargDist), int(calScreenCenter[1]))
-    calTarg3 = (int(calScreenCenter[0]+calTargDist), int(calScreenCenter[1]))
-
-    def elEndRec(el):
-        # Ends the recording; adds 100ms to catch final events
-        pl.endRealTimeMode()
-        pl.pumpDelay(100)
-        el.stopRecording()
-
-    def eyeTrkInit (dr):
-        el = pl.EyeLink()
-        # sending the screen dimensions to the eye tracker:
-        el.sendCommand('screen_pixel_coords = 0 0 %d %d' %dr)
-        el.sendMessage('DISPLAY_COORDS 0 0 %d %d' %dr)
-        el.sendCommand('generate_default_targets = NO')
-        el.sendCommand('calibration_targets = %d,%d %d,%d %d,%d' % (
-                       calTarg1[0], calTarg1[1],
-                       calTarg2[0], calTarg2[1],
-                       calTarg3[0], calTarg3[1]) )
-        el.sendCommand('validation_targets = %d,%d %d,%d %d,%d' % (
-                       calTarg1[0], calTarg1[1],
-                       calTarg2[0], calTarg2[1],
-                       calTarg3[0], calTarg3[1]) )
-        # parser configuration 1 corresponds to high sensitivity to saccades:
-        el.sendCommand('select_parser_configuration 1')
-        # turns off "scenelink camera stuff", i.e., doesn't record the ET video
-        el.sendCommand('scene_camera_gazemap = NO')
-        # converting pupil area to diameter
-        el.sendCommand('pupil_size_diameter = %s'%('YES'))
-        return(el)
-    el = eyeTrkInit(dr)
-    print 'Finished initializing the eye tracker.'
-
-    def eyeTrkCalib (el=el,dr=dr,cd=cd):
-        # "opens the graphics if the display mode is not set"
-        pl.openGraphics(dr,cd)
-        pl.setCalibrationColors((255,255,255),(0,177,177))
-        pl.setTargetSize(10, 5) 
-        pl.setCalibrationSounds("","","")
-        el.setCalibrationType('H3')
-        pl.setDriftCorrectSounds("","off","off")
-        el.disableAutoCalibration()
-        el.doTrackerSetup()
-        el.drawCalTarget(calTarg1)
-        el.drawCalTarget(calTarg2)
-        el.drawCalTarget(calTarg3)
-        pl.closeGraphics()
-        el.setOfflineMode()
 
 # ====================================================================================
 # Store info about the experiment session
 expInfo = {u'session': u'', u'participant': u'', u'experiment': expName, u'para': 'cfs-', u'dom': ''}
-# conditions (paradigms) are 'cent', 'peri', 'dom' [default, i.e. run when left blank], 'test'; also
-# .. bv3-1=maskV, bv3-2=targEcc, bv3-3=targV-cent, bv3-4=targV-peri
 # dom 0 = left, 1 = right, '' = unkown (do the domTest)
 dlg = gui.DlgFromDict(dictionary=expInfo, title='mc2') # dialogue box
 if dlg.OK == False: core.quit()  # user pressed cancel
 timeNow = datetime.now()
 expInfo['time'] = datetime.now().strftime('%Y-%m-%d_%H%M')
 # do the dominance test if the paradigm field is left blank or at 'bc3-':
-if expInfo['dom'] == '' and (expInfo['para']=='' or expInfo['para']=='bv3-' or
-        expInfo['para']=='cfs-'): 
+if expInfo['dom'] == '' and (expInfo['para']=='' or expInfo['para']=='cfs-'): 
     domTest = True
     expPara = 'dom'
 else: # if domTest==False, fixed targEye:
     domTest = False
     expPara = expInfo['para']
-    if expPara=='bv3-1': expPara = 'maskV-cent'
-    elif expPara=='bv3-2': expPara = 'maskV-peri'
-    elif expPara=='bv3-3': expPara = 'targEcc-stat'
-    elif expPara=='bv3-4': expPara = 'targEcc-dyna'
-    elif expPara=='bv3-5': expPara = 'targV-cent'
-    elif expPara=='bv3-6': expPara = 'targV-peri'
-    elif expPara=='bv3-7': expPara = 'targV-stat'
-    elif expPara=='bv3-8': expPara = 'targV-dyna'
-    elif expPara=='bv3-9': expPara = 'targV-centOnly'
-    elif expPara=='bv3-10': expPara = 'xvv-cent'
-    elif expPara=='bv3-11': expPara = 'xvv-peri'
-    elif expPara=='bv3-12': expPara = 'xvv-dyna'
-    elif expPara=='bv3-13': expPara = 'xvv-stat'
-    elif expPara=='cfs-1': expPara = 'cent'
+    if expPara=='cfs-1': expPara = 'cent'
     elif expPara=='cfs-2': expPara = 'peri'
     elif expPara=='cfs-3': expPara = 'stat'
     elif expPara=='cfs-4': expPara = 'dyna'
     else:
-        print 'ERROR: experimental condition has an unrecognized input: should be "bv3-" + number 1-4'
+        print 'ERROR: experimental condition has an unrecognized input: should be "cfs-" + number 1-4'
         core.quit()
     domEyeR = int(float(expInfo['dom']))
     targEyeR = 2-(2**domEyeR)
 
 # one has to specify both para & dom for an experiment, and neither for domTest; quit otherwise:
-if not (expInfo['para'] == '' or expInfo['para'] == 'bv3-') and domTest: 
+if not (expInfo['para'] == '' or expInfo['para'] == 'cfs-') and domTest: 
     print 'ERROR: experimental condition is specified, while the eye dominance is not!'
     core.quit()
-elif (expInfo['para'] == '' or expInfo['para'] == 'bv3-') and not domTest:
+elif (expInfo['para'] == '' or expInfo['para'] == 'cfs-') and not domTest:
     print 'ERROR: eye dominance is specified, while the experimental condition is not!'
     core.quit()
 
@@ -211,54 +123,12 @@ else:
     frameDur = 1.0/60.0 # couldn't get a reliable measure so guess
 
 # ====================================================================================
-# Eye-tracking setup
-
-if et:
-    def etSetup(el=el,dr=dr,cd=cd):
-        blockLabel=visual.TextStim(win, text="Press spacebar", pos=posCentR,
-                                   color="white", bold=True, alignHoriz="center",
-                                   height=0.5)
-        notdone=True
-        while notdone:
-            blockLabel.draw()
-            win.flip()
-            keySpace = event.getKeys(keyList=['escape','space'])
-            if 'space' in keySpace:
-                print 'spacebar pressed'
-                eyeTrkCalib()
-                win.winHandle.activate()
-                print '///Finished calibration///'
-                notdone=False
-            elif 'escape' in keySpace:
-                print 'procedure terminated'
-                notdone=False
-    etSetup()
-
-    def drCor(el=el,dr=dr,cd=cd):
-        pl.openGraphics(dr,cd)
-        el.doDriftCorrect(calScreenCenter[0], calScreenCenter[1], 1, 0)
-        pl.closeGraphics()
-        print '///Finished drift correction///'
-
-# ====================================================================================
-
 # Data file name stem = absolute path + name; later add .psyexp, .csv, .log, etc
-if precompileMode:
-    precompiledDir = '..' + os.sep + 'precompiledMCs'
-dataDir = '..' + os.sep + 'data_bv3'
+dataDir = '..' + os.sep + 'data_cfs'
 fileName = '%s_%s_p%s_s%s_%s' %(expName, expPara, expInfo['participant'], expInfo['session'],
     expInfo['time'])
 filePath = dataDir + os.sep + fileName
 print filePath
-
-if et:
-    edfFileName = 'data.edf'
-    el.openDataFile(edfFileName)
-    el.sendCommand("file_event_filter = LEFT,RIGHT,FIXATION,SACCADE,BLINK,\
-                    MESSAGE,BUTTON,INPUT")
-    el.sendCommand("file_sample_data  = LEFT,RIGHT,GAZE,AREA,GAZERES,STATUS,\
-                    HTARGET,INPUT")
-    print '///set up the EDF file for eye-tracking///'
 
 # Condition-related variables
 conditionsFilePath = 'cond-files'+os.sep+'cond-'+expName+'_'+expPara+'.csv'
@@ -374,6 +244,16 @@ if not os.path.exists(filePath):
 shutil.copyfile(conditionsFilePath, filePath + os.sep + 
                 os.path.basename(conditionsFilePath))
 dataFileName = filePath + os.sep + fileName + '.csv'
+
+# ====================================================================================
+# Preloading the mask files:
+mond = np.zeros((256,256,3,10))
+for i in range(10):
+    mond[:,:,:,i] = (misc.imread('mondrians' + os.sep + str(i+1).zfill(2) + '.jpg')
+        / 256) * 2 - 1
+# Setting up the initial 'grating' for the CFS mask image:
+mcMask = visual.GratingStim(win, tex=mond[:,:,:,0], size=(grtSize,grtSize), 
+    pos=(0,0), interpolate=False)
 
 # ====================================================================================
 # Various functions for use in trials:
@@ -530,7 +410,7 @@ while len(stairs)>0:
     try:
         # current contrast:
         thisContr = thisStair.next() # contrast value
-        contrStr = 'start=%.1f, cur=%.2f' %(thisStair.extraInfo['startContr'], thisContr)
+        contrStr = 'start=%.1f, cur=%.1f' %(thisStair.extraInfo['startContr'], thisContr)
 
     except StopIteration:
         print '-------------------------------------------------'
@@ -549,7 +429,7 @@ while len(stairs)>0:
         nTrialsDone  += 1
         if trialNfb:
             trialNfbText.text = str(nTrialsDone )
-        trialNstr = '#' + str(nTrialsDone )
+        trialNstr = '#' + str(nTrialsDone).zfill(3)
 
         ## Setting up trial variables
 
@@ -560,8 +440,6 @@ while len(stairs)>0:
         mcBsf = thisStair.extraInfo['mcBsf']
         #thisMaskOri = np.rint(np.random.rand(1) * 360)
         #print 'mask ori=' + str(thisMaskOri)
-        if mcBv <= 0.01:
-            thisMaskFrame = np.random.randint(60)
 
         # target:
         targSz = thisStair.extraInfo['targSz']
@@ -589,6 +467,7 @@ while len(stairs)>0:
         if domTest: # else is assigned through GUI
             targEyeR = thisStair.extraInfo['targEyeR']
         maskPos = [winOffX-(2*winOffX*targEyeR), winOffY]
+        mcMask.pos = maskPos
         targGab.pos = [-winOffX+(2*winOffX*targEyeR), winOffY] + \
                       np.array([thisTargXoff, targYoff])
 
@@ -599,10 +478,10 @@ while len(stairs)>0:
         targTend = targTpeak+(targTtot/2)
         trialT = thisStair.extraInfo['trialT'] # -win.monitorFramePeriod*0.75
         
-        print 'TRIAL' + '\t' + 'CONTRAST' + '\t\t' + 'mcBv' + '\t' + 'targT' + \
-              '\t' + 'targOri' + '\t' + 'targDir' + '\t' + 'targXoff'
-        print trialNstr + '\t' + contrStr + '\t' + str(mcBv) + '\t' + str(targTpeak) + \
-              '\t' + str(thisTargOri) + '\t' + str(targDir) + '\t' + str(thisTargXoff)
+        print 'TRIAL' + '\t' + 'CONTRAST' + '\t\t\t\t' + 'mcBv' + '\t' + 'targT' + \
+              '\t' + 'targXoff'
+        print trialNstr + '\t' + contrStr + '\t' + str(mcBv) + '\t\t' + str(targTpeak) + \
+              '\t\t' + str(thisTargXoff)
 
         # view setup: fade, gap, and fixation cross
         fixCross = thisStair.extraInfo['fixCross']
@@ -614,20 +493,15 @@ while len(stairs)>0:
         
         # creating an empty matrix for keeping the behavioural responses:
         behRespTrial = []
-            
-        # initiating the mc gratings:
-        mcV = 0
-        if mcBv > 0.01:
-            grt = np.load(precompiledDir + os.sep + 'mc_' + str(mcV) +
-                    '_sf' + str(mcSf) + '_bsf' + str(mcBsf) + '_bv' + str(mcBv) + 
-                    '_sz' + str(mcSz) + '.npy')
-        else:
-            grt = np.load(precompiledDir + os.sep + 'mc_' + str(mcV) +
-                    '_sf' + str(mcSf) + '_bsf' + str(mcBsf) + '_bv' + str(9.6) + 
-                    '_sz' + str(mcSz) + '.npy')
 
-        # creating a mask, which is fixed for a given trial:
+        # ------------------------------------------------------------------------------
+        ## Preparing the mondrians
+        # pseudo-randomized presentation; this variable determines the order for a trial:
+        mondInds = np.random.permutation(10)
+
+        # creating a mask for mondrians, which is fixed for a given trial:
         mcPeriMask = periMask(periGap, periFade)
+        mcMask.mask = mcPeriMask
 
         #------prepare to start routine "trial"-------
         t = 0
@@ -635,10 +509,8 @@ while len(stairs)>0:
         frameN = -1
 
         # anchors:
-        elStopped = False
         keyPause = False
         targRespGiven = False
-        behRespRecorded = False
 
         # update component parameters for each repeat
         key_arrow = event.BuilderKeyResponse()  # create an object of type keyresponse
@@ -656,16 +528,6 @@ while len(stairs)>0:
         for thisComponent in trialComponents:
             if hasattr(thisComponent, 'status'):
                 thisComponent.status = NOT_STARTED
-        
-        # ////////////////////////////////////////////////////////////////////////////////
-        if et:
-            el.sendMessage("TRIALID " + str(nTrialsDone ))
-            trialStartStr = datetime.now().strftime('%Y-%m-%d_%H%M%S')
-            el.sendMessage("TIMESTAMP " + trialStartStr)
-            el.setOfflineMode()
-            pl.msecDelay(50) 
-            error = el.startRecording(1,1,1,1)
-        # ////////////////////////////////////////////////////////////////////////////////
         
         #-------Start Routine "trial"-------
         continueRoutine = True
@@ -694,16 +556,17 @@ while len(stairs)>0:
             if trialNfb:
                 trialNfbText.draw()
 
-            # mcMask and targ presentation:
+            # mask and targ presentation:
             if t < trialT:
-                # mcMask:
-                if mcBv > 0.01:
-                    mcMask = visual.GratingStim(win, tex=grt[:,:,frameN%nFrames], 
-                        size=(grtSize,grtSize), pos=maskPos, interpolate=False, mask=mcPeriMask)
+                ## mask:
+                # the updating frequency depends on the frame:
+                if mcBv == 0:
+                    imN = 0 # image number - take the first of randomly arranged 10
                 else:
-                    mcMask = visual.GratingStim(win, tex=grt[:,:,thisMaskFrame], 
-                        size=(grtSize,grtSize), pos=maskPos, interpolate=False, mask=mcPeriMask)
-                    #ori=thisMaskOri)
+                    imN = int((frameN % nFrames) // (nFrames/mcBv) % 10)
+                    # both the number of frames (60) and number of images (10) 
+                print('frameN=' + str(frameN) + '; imN=' + str(imN))
+                mcMask.tex = mond[:,:,:,imN]
                 mcMask.draw()
                 # drawing the fixation cross, if any:
                 if fixCross:
@@ -762,12 +625,6 @@ while len(stairs)>0:
                 fdbTextL.draw()
                 fdbTextR.draw()
 
-            if t > trialT and not elStopped:
-                # stopping eye-tracking recording:
-                if et:
-                    elEndRec(el)
-                    elStopped = True
-
             # pause text and data exporting
             if targRespGiven and not keyPause and t>trialT:
                 pauseTextL.draw()
@@ -817,9 +674,6 @@ while len(stairs)>0:
             
             # check for quit (the Esc key)
             if endExpNow or event.getKeys(keyList=["escape"]):
-                print np.shape(behResp)
-                if et:
-                    elEndRec(el)
                 core.quit()
             
             # refresh the screen
@@ -841,18 +695,6 @@ for thisStair in completedStairs:
     print 'staircase ' + thisStair.extraInfo['label']
     print 'meanRev6 = %.3f' %(np.average(thisStair.reversalIntensities[-6:]))
     #print thisStair.reversalIntensities
-
-if et:
-    # File transfer and cleanup!
-    pl.endRealTimeMode()
-    el.setOfflineMode()						  
-    pl.msecDelay(600) 
-
-    #Close the file and transfer it to Display PC
-    el.closeDataFile()
-    el.receiveDataFile(edfFileName, edfFileName)
-    os.rename(edfFileName, filePath + os.sep + edfFileName)
-    el.close()
 
 print "finished the experiment"
 
