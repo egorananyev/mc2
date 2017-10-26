@@ -565,8 +565,8 @@ while len(stairs)>0:
                 else:
                     imN = int((frameN % nFrames) // (nFrames/mcBv) % 10)
                     # both the number of frames (60) and number of images (10) 
-                print('frameN=' + str(frameN) + '; imN=' + str(imN))
-                mcMask.tex = mond[:,:,:,imN]
+                #print('frameN=' + str(frameN) + '; imN=' + str(imN))
+                mcMask.tex = mond[:,:,:,mondInds[imN]]
                 mcMask.draw()
                 # drawing the fixation cross, if any:
                 if fixCross:
