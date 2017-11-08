@@ -30,11 +30,13 @@ library(reshape)
 library(matrixStats)
 library(gridExtra)
 library(lme4)
+library(lmerTest)
 library(BayesFactor)
 #library(splines)
 db <- '/home/egor/Dropbox/' # on Linux
 db <- '/Users/Egor/Dropbox/' # Windows
 # db <- '~/Dropbox/' # on Mac
+source(paste(db, 'Prog/R/myFunctions/pvalfn.R', sep=''))
 ```
 
 ## Plot variables
@@ -60,7 +62,7 @@ yLab <- 'Log Contrast Threshold'
 # colLab <- expression(paste('\nTarget\nVelocity (', degree, '/s)', sep=''))
 colLab <- expression(paste('Target Eccentricity (', degree, ')', sep=''))
 # colLabType <- 'Mask Type'
-yLim <- c(-1.5,-0.5)
+yLim <- c(-1.6,-0.6)
 dodge <- position_dodge(width=0.1)
 sumFn <- function(ss, subjStr='subj', xStr='targTpeak', grpStr='targEcc'){
     sumSubj <- ddply(ss, c(subjStr, xStr, grpStr), summarise,
@@ -111,29 +113,42 @@ plotIndiv <- function(pss, subjStr='subj', xStr='targTpeak', grpStr='targEcc',
 }
 ```
 
-## Scaling function
-```{r}
-cent <- function(v){
-    v <- apply(v,2,function(x){
-        x <- x - mean(unique(x))
-        x <- x / max(x)
-    })
-}
-```
-
 ## Loading the data
 ```{r}
 allDataDir <- paste(db,'Projects/mc/data_bv3/mcBv3_xvv',sep='')
 dataDirs <- dir(allDataDir)
-# dataDirs <- dataDirs[grep('targV',dataDirs)]
+dataDirs <- dataDirs[grep('xvv',dataDirs)]
 colsOfInt <- c('participant', 'dom', 'session', 'mcBv', 'targTpeak', 'targXoff2', 
                'targV', 'stairStart', 'meanRev6')
 df <- data.frame()
+dfRevs <- data.frame()
+dfIntn <- data.frame()
 for(curDir in dataDirs){
     print(curDir)
     curDf <- read.csv(paste(allDataDir,'/',curDir,'/',curDir,'.csv',sep=''))
     curDf <- curDf[,colsOfInt]
     curDf$cond <- substr(curDir,19,22)
+    subjStairs <- dir(paste(allDataDir,'/',curDir,'/',sep=''))
+    subjStairs <- subjStairs[grep('.tsv',subjStairs)]
+    for(curStairFN in subjStairs){
+        curStair <- paste(allDataDir,'/',curDir,'/',curStairFN,sep='')
+        curRevs <- read.table(curStair, skip=1, nrows=1)
+        curIntn <- read.table(curStair, skip=4, nrows=2)
+        curInfo <- readLines(curStair)
+        curInfoCols <- data.frame(subj=curDf$participant[1], dom=curDf$dom[1], 
+                                  sess=curDf$session[1], stairStart=curInfo[33], 
+                                  mcBv=curInfo[41], targTpeak=curInfo[43],
+                                  targEcc=curInfo[37], targV=curInfo[31])
+        curDfRevs <- cbind(curInfoCols, curRevs[,2:9])
+        nTrials <- ncol(curIntn)-1
+        curDfIntn <- curInfoCols[rep(seq_len(nrow(curInfoCols)), each=nTrials),]
+        curDfIntn$trial <- seq(1,nTrials)
+        curDfIntn$intn <- as.numeric(curIntn[1,2:(nTrials+1)])
+        curDfIntn$resp <- as.numeric(curIntn[2,2:(nTrials+1)])
+        rownames(curDfIntn) <- NULL
+        dfRevs <- rbind(dfRevs, curDfRevs)
+        dfIntn <- rbind(dfIntn, curDfIntn)
+    }
     df <- rbind(df, curDf)
 }
 ds <- rename(df, c(participant='subj', session='sess', meanRev6='thresh',
@@ -146,6 +161,8 @@ ds$maskType[ds$maskV==0.6] <- 'slow'
 ds$maskType[ds$maskV==9.6] <- 'fast'
 ds$maskV <- round(ds$maskV * 60 / 35, 1)
 ds$maskV[ds$maskV<0.05] <- 0
+dfIntn$maskV <- round(as.numeric(levels(dfIntn$mcBv))[dfIntn$mcBv] * 60 / 35, 1)
+dfIntn$maskV[dfIntn$maskV<0.05] <- 0
 ds$condSplit <- ''
 ds$condSplit[ds$cond=='stat' | ds$cond=='dyna'] <- 'v'
 ds$condSplit[ds$cond=='cent' | ds$cond=='peri'] <- 'ecc'
@@ -159,20 +176,6 @@ head(ds)
 thresh <- ddply(ds, .(subj,dom,sess,maskV,maskType,targTpeak,targEcc,targV,
                       cond,condSplit), summarise, threshMean = mean(thresh))
 head(thresh)
-```
-
-### Centered data set
-```{r}
-dsc <- ds
-centCols <- c('dom','targTpeak','stairStart','targEcc','maskV','targV')
-dsc[,centCols] <- cent(dsc[,centCols])
-# dsc$maskV <- (dsc$maskV / max(dsc$maskV)) #*2 - 1
-dsc$maskV_c <- (dsc$maskV + 1) / 2
-dsc$targV_c <- (dsc$targV + 1) / 2
-dsc$targEcc_c <- (dsc$targEcc + 1) / 2
-dsc$targTpeak_c <- (dsc$targTpeak + 1) / 2
-dsc$subj <- as.factor(dsc$subj)
-head(dsc)
 ```
 
 # Plotting across target eccentricities
@@ -190,7 +193,14 @@ pTargStatMaskStat <- themefy(plotAve(ssAve)) + ylim(yLim)
 (plotIndiv(ssIndiv) + ylim(-2,0))
 ```
 
-## Moving target and static mask
+### Stair plots
+```{r, fig.height=10, fig.width=10}
+iss <- dfIntn[dfIntn$maskV==0 & dfIntn$targV==0,]
+(p <- ggplot(iss, aes(x=trial, y=intn, colour=targEcc, linetype=stairStart)) +
+    facet_wrap(subj ~ targTpeak, ncol=6) + geom_point() + geom_line() + ylim(-2,0))
+```
+
+## Dynamic target and static mask
 ```{r, fig.height=3, fig.width=7}
 ss <- sumFn(thresh[thresh$maskType=='static' & thresh$targV>0,])
 ssAve <- ss[ss$subj=='average',]
@@ -201,6 +211,13 @@ pTargDynaMaskStat <- themefy(plotAve(ssAve)) + ylim(yLim)
 ### Individual plots
 ```{r, fig.height=6, fig.width=7}
 (plotIndiv(ssIndiv) + ylim(-2,0))
+```
+
+### Stair plots
+```{r, fig.height=10, fig.width=10}
+iss <- dfIntn[dfIntn$maskV==0 & dfIntn$targV==16,]
+(p <- ggplot(iss, aes(x=trial, y=intn, colour=targEcc, linetype=stairStart)) +
+    facet_wrap(subj ~ targTpeak, ncol=6) + geom_point() + geom_line() + ylim(-2,0))
 ```
 
 ## Static target & slow mask
@@ -216,12 +233,31 @@ pTargStatMaskSlow <- themefy(plotAve(ssAve)) + ylim(yLim)
 (plotIndiv(ssIndiv) + ylim(-2,0))
 ```
 
+### Stair plots
+```{r, fig.height=10, fig.width=10}
+iss <- dfIntn[dfIntn$maskV==1 & dfIntn$targV==0,]
+(p <- ggplot(iss, aes(x=trial, y=intn, colour=targEcc, linetype=stairStart)) +
+    facet_wrap(subj ~ targTpeak, ncol=6) + geom_point() + geom_line() + ylim(-2,0))
+```
+
 ## Dynamic target and slow mask
 ```{r, fig.height=3, fig.width=7}
 ss <- sumFn(thresh[thresh$maskType=='slow' & thresh$targV>0,])
 ssAve <- ss[ss$subj=='average',]
 ssIndiv <- ss[ss$subj!='average',]
 pTargDynaMaskSlow <- themefy(plotAve(ssAve)) + ylim(yLim)
+```
+
+### Individual plots
+```{r, fig.height=6, fig.width=7}
+(plotIndiv(ssIndiv) + ylim(-2,0))
+```
+
+### Stair plots
+```{r, fig.height=10, fig.width=10}
+iss <- dfIntn[dfIntn$maskV==1 & dfIntn$targV==16,]
+(p <- ggplot(iss, aes(x=trial, y=intn, colour=targEcc, linetype=stairStart)) +
+    facet_wrap(subj ~ targTpeak, ncol=6) + geom_point() + geom_line() + ylim(-2,0))
 ```
 
 ## Static target & fast mask
@@ -237,6 +273,13 @@ pTargStatMaskFast <- themefy(plotAve(ssAve)) + ylim(yLim)
 (plotIndiv(ssIndiv) + ylim(-2,0))
 ```
 
+### Stair plots
+```{r, fig.height=10, fig.width=10}
+iss <- dfIntn[dfIntn$maskV==16.5 & dfIntn$targV==0,]
+(p <- ggplot(iss, aes(x=trial, y=intn, colour=targEcc, linetype=stairStart)) +
+    facet_wrap(subj ~ targTpeak, ncol=6) + geom_point() + geom_line() + ylim(-2,0))
+```
+
 ## Dynamic target and fast mask
 ```{r, fig.height=3, fig.width=7}
 ss <- sumFn(thresh[thresh$maskType=='fast' & thresh$targV>0,])
@@ -250,100 +293,81 @@ pTargDynaMaskFast <- themefy(plotAve(ssAve)) + ylim(yLim)
 (plotIndiv(ssIndiv) + ylim(-2,0))
 ```
 
+### Stair plots
+```{r, fig.height=10, fig.width=10}
+iss <- dfIntn[dfIntn$maskV==16.5 & dfIntn$targV==16,]
+(p <- ggplot(iss, aes(x=trial, y=intn, colour=targEcc, linetype=stairStart)) +
+    facet_wrap(subj ~ targTpeak, ncol=6) + geom_point() + geom_line() + ylim(-2,0))
+```
+
 ## Group plots
 ```{r, fig.height=7.2, fig.width=7}
 grid.arrange(pTargStatMaskStat + #theme(legend.position='none') + 
                  ggtitle('a: static mask, static target'),
-             pTargDynaMaskStat + ggtitle('b: static mask, dynamic target'),
-             pTargStatMaskSlow + ggtitle('c: slow mask, static target'),
-             pTargDynaMaskSlow + ggtitle('d: slow mask, dynamic target'),
+             pTargDynaMaskStat + ggtitle('d: static mask, dynamic target'),
+             pTargStatMaskSlow + ggtitle('b: slow mask, static target'),
+             pTargDynaMaskSlow + ggtitle('e: slow mask, dynamic target'),
              pTargStatMaskFast + ggtitle('c: fast mask, static target'),
-             pTargDynaMaskFast + ggtitle('d: fast mask, dynamic target'),
+             pTargDynaMaskFast + ggtitle('f: fast mask, dynamic target'),
              ncol=2, nrow=3) #widths=c((1-w)/2,w/2))
 ```
 
-<!-- ### Split by maskV -->
-<!-- ```{r, fig.height=4.8, fig.width=7} -->
-<!-- ss <- sumFn(thresh[(thresh$maskType=='static' & thresh$targType=='central' &  -->
-<!--                         thresh$condSplit=='mask'),]) -->
-<!-- ssAve <- ss[ss$subj=='average',] -->
-<!-- pStatCent <- themefy(plotAve(ssAve)) + ylim(yLim) -->
-<!-- ss <- sumFn(thresh[(thresh$maskType=='dynamic' & thresh$targType=='central' &  -->
-<!--                         thresh$condSplit=='mask'),]) -->
-<!-- ssAve <- ss[ss$subj=='average',] -->
-<!-- pDynaCent <- themefy(plotAve(ssAve)) + ylim(yLim) -->
-<!-- ss <- sumFn(thresh[(thresh$maskType=='static' & thresh$targType=='peripheral' &  -->
-<!--                         thresh$condSplit=='mask'),]) -->
-<!-- ssAve <- ss[ss$subj=='average',] -->
-<!-- pStatPeri <- themefy(plotAve(ssAve)) + ylim(yLim) -->
-<!-- ss <- sumFn(thresh[(thresh$maskType=='dynamic' & thresh$targType=='peripheral' &  -->
-<!--                         thresh$condSplit=='mask'),]) -->
-<!-- ssAve <- ss[ss$subj=='average',] -->
-<!-- pDynaPeri <- themefy(plotAve(ssAve)) + ylim(yLim) -->
-<!-- grid.arrange(pStatCent + #theme(legend.position='none') +  -->
-<!--                  ggtitle('a: static mask, central target'), -->
-<!--              pDynaCent + ggtitle('b: dynamic mask, central target'), -->
-<!--              pStatPeri + ggtitle('c: static mask, peripheral target'), -->
-<!--              pDynaPeri + ggtitle('d: dynamic mask, peripheral target'), -->
-<!--              ncol=2, nrow=2) #widths=c((1-w)/2,w/2)) -->
-<!-- ``` -->
+# Analyses
 
-<!-- ### Split by targEcc -->
-<!-- ```{r, fig.height=4.8, fig.width=7} -->
-<!-- ss <- sumFn(thresh[(thresh$maskType=='static' & thresh$targType=='central' &  -->
-<!--                         thresh$condSplit=='targ'),]) -->
-<!-- ssAve <- ss[ss$subj=='average',] -->
-<!-- pStatCent <- themefy(plotAve(ssAve)) + ylim(yLim) -->
-<!-- ss <- sumFn(thresh[(thresh$maskType=='dynamic' & thresh$targType=='central' &  -->
-<!--                         thresh$condSplit=='targ'),]) -->
-<!-- ssAve <- ss[ss$subj=='average',] -->
-<!-- pDynaCent <- themefy(plotAve(ssAve)) + ylim(yLim) -->
-<!-- ss <- sumFn(thresh[(thresh$maskType=='static' & thresh$targType=='peripheral' &  -->
-<!--                         thresh$condSplit=='targ'),]) -->
-<!-- ssAve <- ss[ss$subj=='average',] -->
-<!-- pStatPeri <- themefy(plotAve(ssAve)) + ylim(yLim) -->
-<!-- ss <- sumFn(thresh[(thresh$maskType=='dynamic' & thresh$targType=='peripheral' &  -->
-<!--                         thresh$condSplit=='targ'),]) -->
-<!-- ssAve <- ss[ss$subj=='average',] -->
-<!-- pDynaPeri <- themefy(plotAve(ssAve)) + ylim(yLim) -->
-<!-- grid.arrange(pStatCent + #theme(legend.position='none') +  -->
-<!--                  ggtitle('a: static mask, central target'), -->
-<!--              pDynaCent + ggtitle('b: dynamic mask, central target'), -->
-<!--              pStatPeri + ggtitle('c: static mask, peripheral target'), -->
-<!--              pDynaPeri + ggtitle('d: dynamic mask, peripheral target'), -->
-<!--              ncol=2, nrow=2) #widths=c((1-w)/2,w/2)) -->
-<!-- ``` -->
+## Scaling function
+```{r}
+cent <- function(v){
+    v <- apply(v,2,function(x){
+        x <- x - mean(unique(x),na.rm=T)
+        x <- x / max(x)
+    })
+}
+```
 
+### Centered data set
+```{r}
+dsc <- ds
+centCols <- c('dom','targTpeak','stairStart','targEcc','maskV','targV','sess')
+dsc[,centCols] <- cent(dsc[,centCols])
+# dsc$maskV <- (dsc$maskV / max(dsc$maskV)) #*2 - 1
+dsc$maskV_c <- (dsc$maskV + 1) / 2
+dsc$targV_c <- (dsc$targV + 1) / 2
+dsc$targEcc_c <- round((dsc$targEcc + 1) / 2,0)
+dsc$targTpeak_c <- (dsc$targTpeak + 1) / 2
+# dsc$subj <- as.factor(dsc$subj)
+# dsc$maskType <- ordered(ds$maskType, levels=c('static','slow','fast'))
+dsc$maskType <- factor(dsc$maskType, c('static','slow','fast'))
+head(dsc)
+```
 
-<!-- <!-- -->
-<!-- # Analyses -->
-
-<!-- ## GLM -->
-<!-- ```{r} -->
-<!-- coef(summary(lmer(thresh ~ dom + stairStart + sess + maskV * targTpeak * targEcc +  -->
-<!--                  (1|subj), data=dsc))) -->
-<!-- coef(summary(lmer(thresh ~ dom + stairStart + sess + maskV_c * targTpeak_c * targEcc_c +  -->
-<!--                  (1|subj), data=dsc))) -->
-<!-- ``` -->
+## GLM
+```{r}
+# ds$targTpeak_c <- ds$targTpeak - 0.5 # [.5, 1, 1.5] -> [0, .5, 1]
+# ds$targEcc_c <- cent(ds$targEcc)
+pvalfn(lmer(thresh ~ dom + stairStart + sess + maskType * targTpeak_c * targEcc_c +
+                 (1|subj), data=dsc[dsc$targV==-1,]))
+pvalfn(lmer(thresh ~ dom + stairStart + sess + maskType * targTpeak_c * targEcc_c *
+                 targV_c + (1|subj), data=dsc))
+```
 
 <!-- ## BF: simple effects -->
 
 <!-- ### Mask type -->
 <!-- ```{r} -->
 <!-- bfBase <- lmBF(thresh ~ subj + dom + stairStart + sess, data=dsc, whichRandom='subj') -->
-<!-- bfTest <- lmBF(thresh ~ subj + dom + stairStart + sess + maskV, data=dsc,  -->
+<!-- bfTest <- lmBF(thresh ~ subj + dom + stairStart + sess + maskV, data=dsc, -->
 <!--                whichRandom='subj') -->
 <!-- as.vector(bfTest / bfBase) -->
 <!-- ``` -->
 <!-- ### Target Eccentricity -->
 <!-- ```{r} -->
-<!-- bfTest <- lmBF(thresh ~ subj + dom + stairStart + sess + targEcc, data=dsc,  -->
+<!-- bfTest <- lmBF(thresh ~ subj + dom + stairStart + sess + targEcc, data=dsc, -->
 <!--                whichRandom='subj') -->
 <!-- as.vector(bfTest / bfBase) -->
 <!-- ``` -->
 <!-- ### Target onset -->
 <!-- ```{r} -->
-<!-- bfTest <- lmBF(thresh ~ subj + dom + stairStart + sess + targTpeak, data=dsc,  -->
+<!-- bfTest <- lmBF(thresh ~ subj + dom + stairStart + sess + targTpeak, data=dsc, -->
 <!--                whichRandom='subj') -->
 <!-- as.vector(bfTest / bfBase) -->
 <!-- ``` -->
@@ -354,7 +378,7 @@ grid.arrange(pTargStatMaskStat + #theme(legend.position='none') +
 <!-- ```{r} -->
 <!-- bfBase <- lmBF(thresh ~ subj + dom + stairStart + sess, -->
 <!--                data=dsc[dsc$maskType=='static',], whichRandom='subj') -->
-<!-- bfTest <- lmBF(thresh ~ subj + dom + stairStart + sess + targTpeak,  -->
+<!-- bfTest <- lmBF(thresh ~ subj + dom + stairStart + sess + targTpeak, -->
 <!--                data=dsc[dsc$maskType=='static',], whichRandom='subj') -->
 <!-- as.vector(bfTest / bfBase) -->
 <!-- ``` -->
@@ -362,7 +386,7 @@ grid.arrange(pTargStatMaskStat + #theme(legend.position='none') +
 <!-- ```{r} -->
 <!-- bfBase <- lmBF(thresh ~ subj + dom + stairStart + sess, -->
 <!--                data=dsc[dsc$maskType=='dynamic',], whichRandom='subj') -->
-<!-- bfTest <- lmBF(thresh ~ subj + dom + stairStart + sess + targTpeak,  -->
+<!-- bfTest <- lmBF(thresh ~ subj + dom + stairStart + sess + targTpeak, -->
 <!--                data=dsc[dsc$maskType=='dynamic',], whichRandom='subj') -->
 <!-- as.vector(bfTest / bfBase) -->
 <!-- ``` -->
@@ -370,33 +394,32 @@ grid.arrange(pTargStatMaskStat + #theme(legend.position='none') +
 <!-- ## BF: two-way interactions -->
 <!-- ### maskV X targEcc -->
 <!-- ```{r} -->
-<!-- bfBase <- lmBF(thresh ~ subj + dom + stairStart + sess + maskV + targTpeak +  -->
+<!-- bfBase <- lmBF(thresh ~ subj + dom + stairStart + sess + maskV + targTpeak + -->
 <!--                    targEcc, data=dsc, whichRandom='subj') -->
-<!-- bfTest <- lmBF(thresh ~ subj + dom + stairStart + sess + maskV + targTpeak +  -->
+<!-- bfTest <- lmBF(thresh ~ subj + dom + stairStart + sess + maskV + targTpeak + -->
 <!--                    targEcc + targEcc*maskV, data=dsc, whichRandom='subj') -->
 <!-- as.vector(bfTest / bfBase) -->
 <!-- ``` -->
 <!-- ### maskV X targOnset -->
 <!-- ```{r} -->
-<!-- bfTest <- lmBF(thresh ~ subj + dom + stairStart + sess + maskV + targTpeak +  -->
+<!-- bfTest <- lmBF(thresh ~ subj + dom + stairStart + sess + maskV + targTpeak + -->
 <!--                    targEcc + maskV*targTpeak, data=dsc, whichRandom='subj') -->
 <!-- as.vector(bfTest / bfBase) -->
 <!-- ``` -->
 <!-- ### targEcc X onset -->
 <!-- ```{r} -->
-<!-- bfTest <- lmBF(thresh ~ subj + dom + stairStart + sess + maskV + targTpeak +  -->
+<!-- bfTest <- lmBF(thresh ~ subj + dom + stairStart + sess + maskV + targTpeak + -->
 <!--                    targEcc + targEcc*targTpeak, data=dsc, whichRandom='subj') -->
 <!-- as.vector(bfTest / bfBase) -->
 <!-- ``` -->
 
 <!-- ## BF: three-way interaction -->
 <!-- ```{r} -->
-<!-- bfBase <- lmBF(thresh ~ subj + dom + stairStart + sess + maskV + targTpeak +  -->
-<!--                    targEcc + targEcc*maskV + targTpeak*maskV + targTpeak*targEcc,  -->
+<!-- bfBase <- lmBF(thresh ~ subj + dom + stairStart + sess + maskV + targTpeak + -->
+<!--                    targEcc + targEcc*maskV + targTpeak*maskV + targTpeak*targEcc, -->
 <!--                data=dsc, whichRandom='subj') -->
-<!-- bfTest <- lmBF(thresh ~ subj + dom + stairStart + sess + maskV + targTpeak +  -->
+<!-- bfTest <- lmBF(thresh ~ subj + dom + stairStart + sess + maskV + targTpeak + -->
 <!--                    targEcc + targEcc*maskV + targTpeak*maskV + targTpeak*targEcc + -->
 <!--                    targEcc*maskV*targTpeak, data=dsc, whichRandom='subj') -->
 <!-- as.vector(bfTest / bfBase) -->
 <!-- ``` -->
-<!-- ---> -->
