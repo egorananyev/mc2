@@ -1,0 +1,242 @@
+---
+title: "Motion clouds rivalry: Combined MC & CFS"
+author: "Egor Ananyev"
+date: "August 25, 2017"
+output:
+    html_document:
+        toc: true
+---
+
+<style type="text/css">
+body, td{
+  font-family: Cambria;
+}
+code.r{
+  font-family: Inconsolata;
+}
+</style>
+
+# Preparing the data
+
+## Loading the packages and data directories
+```{r set-options, message=F}
+options(width=100)
+out=F
+an=T
+# The list of subjects, the order of conditions, and the thresholds are derived from Subjects.xlsx
+library(xlsx)
+library(ggplot2)
+library(plyr)
+library(reshape)
+library(matrixStats)
+library(gridExtra)
+library(lme4)
+library(lmerTest)
+library(BayesFactor)
+#library(splines)
+db <- '/home/egor/Dropbox/' # on Linux
+db <- '/Users/Egor/Dropbox/' # Windows
+# db <- '~/Dropbox/' # on Mac
+source(paste(db, 'Prog/R/myFunctions/pvalfn.R', sep=''))
+```
+
+## Plot variables
+```{r, message=FALSE, warning=FALSE}
+# theme for plotting:
+alpha <- .7
+themefy <- function(p) {
+    p <- p + theme_bw() + 
+         theme(panel.grid.minor.x=element_blank(), panel.grid.minor.y=element_blank(),
+            axis.text=element_text(size=8), axis.title=element_text(size=9),
+            legend.text=element_text(size=8), legend.title=element_text(size=9),
+            legend.key = element_blank(), legend.margin=margin(t=-.04, unit='in'),
+            legend.background = element_rect(fill='transparent'),
+            plot.title=element_text(face='bold'))
+}
+cc <- c("#F8766D","#7CAE00","#00BFC4","#C77CFF")
+xLab <- 'Target Peak Time (s)'
+yLab <- 'Log Contrast Threshold'
+# colLab <- expression(paste('\nTarget\nVelocity (', degree, '/s)', sep=''))
+# colLab <- expression(paste('Target Eccentricity (', degree, ')', sep=''))
+colLab <- 'Mask Speed'
+# colLabType <- 'Mask Type'
+yLim <- c(-1.55,-0.7)
+dodge <- position_dodge(width=0.0)
+```
+
+```{r}
+sumFn <- function(ss, subjStr='subj', xStr='targTpeak', grpStr='maskSpeed', lineStr='targType'){
+    sumSubj <- ddply(ss, c(subjStr, xStr, grpStr, lineStr), summarise,
+                     mnS=mean(threshMean), se=sd(threshMean)/sqrt(length(threshMean))) 
+    # total mean across conditions per subj:
+    sumSubjMn <- ddply(ss, c(subjStr), summarise, mnStot=mean(threshMean)) 
+    sumSubj <- merge(sumSubj, sumSubjMn)
+    sumSubj$normS <- - sumSubj$mnS / sumSubj$mnStot # normalized subject mean
+    sumSubj$seNorm <- NA
+    # sumSubj$mnS[is.na(sumSubj$mnS)] <- 0
+    sumGrp <- ddply(sumSubj, c(xStr, grpStr, lineStr), summarise,
+                  mn=mean(mnS), se=sd(mnS)/sqrt(length(mnS)),
+                  norm=mean(normS), seNorm=sd(normS)/sqrt(length(normS)))
+    sumGrp$subj <- 'average'
+    sumSubj <- rename(sumSubj, c(mnS='mn',normS='norm'))
+    sumComb <- rbind(sumGrp, subset(sumSubj, select=-mnStot))
+    sumComb$se[is.na(sumComb$se)] <- 0
+    sumComb
+}
+plotAve <- function(pss, subjStr='subj', xStr='targTpeak', colStr='maskSpeed', lineStr='targType',
+                    xlab=xLab, ylab=yLab, collab=colLab, yStr='mn', seStr='se'){
+    pss$yMin <- pss[,yStr] - pss[,seStr] # computing standard errors for plotting
+    pss$yMax <- pss[,yStr] + pss[,seStr]
+    pss$grp <- paste0(pss[,colStr], pss[,lineStr])
+    p <- ggplot(pss, aes_string(x=xStr, y=yStr, colour=colStr, group='grp', linetype='grp',
+                            ymin='yMin', ymax='yMax')) +
+        scale_linetype_manual(values=rep(c('solid','dashed'),3),
+                              breaks=c('fastcentral','fastperipheral'), labels=unique(pss[,lineStr]),
+                              name='Target Eccentricity') +
+        geom_point(position=dodge, size=1, alpha=alpha) + geom_line(position=dodge) +
+        scale_x_continuous(breaks=c(.5,1,1.5), labels=c('0.5','1','1.5')) +
+        geom_linerange(position=dodge, show.legend=F, alpha=alpha, linetype='solid') +
+        labs(x=xlab, y=ylab, colour=collab) + ylim(yLim) + 
+        scale_colour_manual(values=cc[c(1,3,2)])
+        guides(colour=guide_legend(keyheight=.3, default.unit='inch'))
+    p <- themefy(p)
+}
+```
+
+# Motion clouds
+
+```{r}
+allDataDir <- paste(db,'Projects/mc/data_bv3/mcBv3_xvv',sep='')
+dataDirs <- dir(allDataDir)
+dataDirs <- dataDirs[grep('xvv',dataDirs)]
+colsOfInt <- c('participant', 'dom', 'session', 'mcBv', 'targTpeak', 'targXoff2', 
+               'targV', 'stairStart', 'meanRev6')
+df <- data.frame()
+for(curDir in dataDirs){
+    print(curDir)
+    curDf <- read.csv(paste(allDataDir,'/',curDir,'/',curDir,'.csv',sep=''))
+    curDf <- curDf[,colsOfInt]
+    df <- rbind(df, curDf)
+}
+ds <- rename(df, c(participant='subj', session='sess', meanRev6='thresh',
+                   mcBv='maskV', targXoff2='targEcc'))
+ds$targEcc <- round(ds$targEcc / 35,1)
+ds$targType <- 'central'
+ds$targType[ds$targEcc==2.9] <- 'peripheral'
+ds$targV <- round(ds$targV / 3.5,1)
+ds$maskSpeed <- ''
+ds$maskSpeed[ds$maskV==0.01] <- 'static'
+ds$maskSpeed[ds$maskV==0.6] <- 'medium'
+ds$maskSpeed[ds$maskV==9.6] <- 'fast'
+ds$maskSpeed <- factor(ds$maskSpeed, levels=c('static','medium','fast'))
+ds$maskV <- round(ds$maskV * 60 / 35, 1)
+ds$maskV[ds$maskV<0.05] <- 0
+ds <- ds[ds$targV==0,]
+head(ds)
+thresh <- ddply(ds, .(subj,dom,sess,maskSpeed,targType,targTpeak,targEcc), summarise, 
+                threshMean = mean(thresh))
+head(thresh)
+dsMc <- ds
+```
+
+```{r, fig.height=3, fig.width=3.5}
+ssXvv <- sumFn(thresh)
+ssXvv <- ssXvv[ssXvv$subj=='average',]
+pXvv <- plotAve(ssXvv)
+```
+
+# CFS
+
+```{r}
+allDataDir <- paste(db,'Projects/mc/data_cfs/cfs',sep='')
+dataDirs <- dir(allDataDir)
+dataDirs <- dataDirs[grep('cfs',dataDirs)]
+colsOfInt <- c('participant', 'dom', 'session', 'mcBv', 'targTpeak', 'targXoff2', 
+               'targV', 'stairStart', 'meanRev6')
+df <- data.frame()
+for(curDir in dataDirs){
+    print(curDir)
+    curDf <- read.csv(paste(allDataDir,'/',curDir,'/',curDir,'.csv',sep=''))
+    curDf <- curDf[,colsOfInt]
+    df <- rbind(df, curDf)
+}
+ds <- rename(df, c(participant='subj', session='sess', meanRev6='thresh',
+                   mcBv='maskV', targXoff2='targEcc'))
+ds$targEcc <- round(ds$targEcc / 35,1)
+ds$targType <- 'central'
+ds$targType[ds$targEcc==2.9] <- 'peripheral'
+ds$targV <- round(ds$targV / 3.5,1)
+ds$maskSpeed <- ''
+ds$maskSpeed[ds$maskV==0] <- 'static'
+ds$maskSpeed[ds$maskV==10] <- 'medium'
+ds$maskSpeed[ds$maskV==60] <- 'fast'
+ds$maskSpeed <- factor(ds$maskSpeed, levels=c('static','medium','fast'))
+ds <- ds[ds$targV==0,]
+head(ds)
+thresh <- ddply(ds, .(subj,dom,sess,maskSpeed,targType,targTpeak,targEcc), summarise, 
+                threshMean = mean(thresh))
+head(thresh)
+dsCfs <- ds
+```
+
+```{r, fig.height=3, fig.width=3.5}
+ssCfs <- sumFn(thresh)
+ssCfs <- ssCfs[ssCfs$subj=='average',]
+pCfs <- plotAve(ssCfs)
+```
+
+# Group plots
+```{r, fig.height=7.2, fig.width=7}
+if(out){jpeg('exp5.jpg', width=4, height=2.1, units='in', res=600)}
+w <- .595 # proportion width in group plots (larger value = larger left)
+grid.arrange(pXvv + theme(legend.position='none', axis.title.x=element_text(hjust=1.18)) +  
+                 ggtitle('c') + labs(x='Target Pe'), pCfs + ggtitle('d') + 
+                 labs(x='ak Time (s)') + theme(axis.title.y=element_blank(), 
+                                         axis.title.x=element_text(hjust=-.29),
+                                         axis.text.y=element_blank()), 
+             ncol=2, widths=c((1-w)/2,w/2))
+if(out){dev.off()}
+```
+
+# Analyses
+```{r}
+dsCfs$pattern <- 'CFS'
+dsMc$pattern <- 'MC'
+dsA <- rbind(dsCfs, dsMc)
+rownames(dsA) <- NULL
+```
+
+## Prep
+
+### Scaling function
+```{r}
+cent <- function(v){
+    v <- apply(v,2,function(x){
+        x <- x - mean(unique(x))
+        x <- x / max(x)
+    })
+}
+```
+
+### Centered data set
+```{r}
+dsc <- dsA
+centCols <- c('dom','targTpeak','stairStart','targEcc')
+dsc[,centCols] <- cent(dsc[,centCols])
+dsc$targEcc_b <- round((dsc$targEcc + 1) / 2,0)
+dsc$targTpeak_b <- (dsc$targTpeak + 1) / 2
+dsc$maskSpeed <- factor(dsc$maskSpeed, c('static','medium','fast'))
+head(dsc)
+```
+
+## GLM
+```{r}
+pvalfn(lmer(thresh ~ dom + stairStart + sess + maskSpeed * targTpeak * targEcc * pattern +
+                 (1|subj), data=dsc))
+summary(aov(thresh ~ maskSpeed * targTpeak_b * targEcc_b * pattern, data=dsc))
+```
+
+## BF
+```{r}
+# dsc$subj <- as.factor(dsc$subj)
+```
