@@ -84,6 +84,26 @@ sumFn <- function(ss, subjStr='subj', xStr='targTpeak', grpStr='maskSpeed', line
     sumComb
 }
 plotAve <- function(pss, subjStr='subj', xStr='targTpeak', colStr='maskSpeed', lineStr='targType',
+                    xlab=xLab, ylab=yLab, collab=colLab, yStr='mn', seStr='se',
+                    alphaStr='step4'){
+    pss$yMin <- pss[,yStr] - pss[,seStr] # computing standard errors for plotting
+    pss$yMax <- pss[,yStr] + pss[,seStr]
+    pss$grp <- paste0(pss[,colStr], pss[,lineStr])
+    p <- ggplot(pss, aes_string(x=xStr, y=yStr, colour=colStr, group='grp', linetype='grp',
+                            ymin='yMin', ymax='yMax')) +
+        scale_linetype_manual(values=rep(c('solid','dashed'),3),
+                              breaks=c('fastcentral','fastperipheral'), labels=unique(pss[,lineStr]),
+                              name='Target Eccentricity') +
+        geom_point(position=dodge, size=1, aes_string(alpha=alphaStr)) + 
+        geom_line(position=dodge, aes_string(alpha=alphaStr)) + scale_alpha(range=c(0,1)) +
+        scale_x_continuous(breaks=c(.5,1,1.5), labels=c('0.5','1','1.5')) +
+        geom_linerange(position=dodge, show.legend=F, linetype='solid', aes_string(alpha=alphaStr)) +
+        labs(x=xlab, y=ylab, colour=collab) + ylim(yLim) + 
+        scale_colour_manual(values=cc[c(1,3,2)])
+        guides(colour=guide_legend(keyheight=.3, default.unit='inch'))
+    p <- themefy(p)
+}
+plotAve <- function(pss, subjStr='subj', xStr='targTpeak', colStr='maskSpeed', lineStr='targType',
                     xlab=xLab, ylab=yLab, collab=colLab, yStr='mn', seStr='se'){
     pss$yMin <- pss[,yStr] - pss[,seStr] # computing standard errors for plotting
     pss$yMax <- pss[,yStr] + pss[,seStr]
@@ -93,10 +113,11 @@ plotAve <- function(pss, subjStr='subj', xStr='targTpeak', colStr='maskSpeed', l
         scale_linetype_manual(values=rep(c('solid','dashed'),3),
                               breaks=c('fastcentral','fastperipheral'), labels=unique(pss[,lineStr]),
                               name='Target Eccentricity') +
-        geom_point(position=dodge, size=1, alpha=alpha) + geom_line(position=dodge) +
+        geom_point(position=dodge, size=1) +
+        geom_line(position=dodge) +
         scale_x_continuous(breaks=c(.5,1,1.5), labels=c('0.5','1','1.5')) +
-        geom_linerange(position=dodge, show.legend=F, alpha=alpha, linetype='solid') +
-        labs(x=xlab, y=ylab, colour=collab) + ylim(yLim) + 
+        geom_linerange(position=dodge, show.legend=F, linetype='solid') +
+        labs(x=xlab, y=ylab, colour=collab) + ylim(yLim) +
         scale_colour_manual(values=cc[c(1,3,2)])
         guides(colour=guide_legend(keyheight=.3, default.unit='inch'))
     p <- themefy(p)
@@ -142,6 +163,13 @@ dsMc <- ds
 ```{r, fig.height=3, fig.width=3.5}
 ssXvv <- sumFn(thresh)
 ssXvv <- ssXvv[ssXvv$subj=='average',]
+ssXvv$step1 <- 0
+ssXvv$step1[ssXvv$maskSpeed=='static'] <- 1 # alpha
+ssXvv$step2 <- ssXvv$step1
+ssXvv$step2[ssXvv$maskSpeed=='fast'] <- 1 # alpha
+ssXvv$step3 <- 1
+ssXvv$step4 <- 0
+ssXvv$step4[ssXvv$maskSpeed=='medium'] <- 1 # alpha
 pXvv <- plotAve(ssXvv)
 ```
 
@@ -182,15 +210,22 @@ dsCfs <- ds
 ```{r, fig.height=3, fig.width=3.5}
 ssCfs <- sumFn(thresh)
 ssCfs <- ssCfs[ssCfs$subj=='average',]
+ssCfs$step1 <- 0
+ssCfs$step1[ssCfs$maskSpeed=='static'] <- 1 # alpha
+ssCfs$step2 <- ssCfs$step1
+ssCfs$step2[ssCfs$maskSpeed=='fast'] <- 1 # alpha
+ssCfs$step3 <- 1
+ssCfs$step4 <- 0
+ssCfs$step4[ssCfs$maskSpeed=='medium'] <- 1 # alpha
 pCfs <- plotAve(ssCfs)
 ```
 
 # Group plots
 ```{r, fig.height=7.2, fig.width=7}
-if(out){jpeg('exp5.jpg', width=4, height=2.1, units='in', res=600)}
+if(out){jpeg('exp5-3.jpg', width=4, height=2.1, units='in', res=600)}
 w <- .595 # proportion width in group plots (larger value = larger left)
 grid.arrange(pXvv + theme(legend.position='none', axis.title.x=element_text(hjust=1.18)) +  
-                 ggtitle('c') + labs(x='Target Pe'), pCfs + ggtitle('d') + 
+                 labs(x='Target Pe'), pCfs + 
                  labs(x='ak Time (s)') + theme(axis.title.y=element_blank(), 
                                          axis.title.x=element_text(hjust=-.29),
                                          axis.text.y=element_blank()), 

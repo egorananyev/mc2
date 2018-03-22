@@ -17,9 +17,9 @@ import pyglet
 
 
 # Initiating the keyboard
-from psychopy.iohub import launchHubServer
-io = launchHubServer()
-kb_device = io.devices.keyboard
+#from psychopy.iohub import launchHubServer
+#io = launchHubServer()
+#kb_device = io.devices.keyboard
 
 # Ensure that relative paths start from the same directory as this script
 _thisDir = os.path.dirname(os.path.abspath(__file__))
@@ -27,7 +27,7 @@ _thisDir = os.path.dirname(os.path.abspath(__file__))
 # ====================================================================================
 ## Initial variables.
 et = 0
-expName = 'mc2_tgT-mcBv3'
+expName = 'mc2_targV'
 # Window circles (specified in degrees of visual angles [dva]):
 #winSz = 7.2 # 5.03; calculated as 5/x=sqrt(2)/2 => x=10/sqrt(2)
 winOffX = 4.25 # 6 # 5.62
@@ -153,7 +153,8 @@ if et:
 
 # ====================================================================================
 # Store info about the experiment session
-expInfo = {u'session': u'', u'participant': u'', u'experiment': expName, u'para': 'cfs-', u'dom': ''}
+expInfo = {u'session': u'', u'participant': u'', u'experiment': expName, u'para': '', u'dom': ''}
+expName = expInfo['experiment']
 # conditions (paradigms) are 'cent', 'peri', 'dom' [default, i.e. run when left blank], 'test'; also
 # .. bv3-1=maskV, bv3-2=targEcc, bv3-3=targV-cent, bv3-4=targV-peri
 # dom 0 = left, 1 = right, '' = unkown (do the domTest)
@@ -186,6 +187,7 @@ else: # if domTest==False, fixed targEye:
     elif expPara=='cfs-2': expPara = 'peri'
     elif expPara=='cfs-3': expPara = 'stat'
     elif expPara=='cfs-4': expPara = 'dyna'
+    elif expPara=='': expPara=''
     else:
         print 'ERROR: experimental condition has an unrecognized input: should be "bv3-" + number 1-4'
         core.quit()
@@ -193,12 +195,12 @@ else: # if domTest==False, fixed targEye:
     targEyeR = 2-(2**domEyeR)
 
 # one has to specify both para & dom for an experiment, and neither for domTest; quit otherwise:
-if not (expInfo['para'] == '' or expInfo['para'] == 'bv3-') and domTest: 
-    print 'ERROR: experimental condition is specified, while the eye dominance is not!'
-    core.quit()
-elif (expInfo['para'] == '' or expInfo['para'] == 'bv3-') and not domTest:
-    print 'ERROR: eye dominance is specified, while the experimental condition is not!'
-    core.quit()
+#if not (expInfo['para'] == '' or expInfo['para'] == 'bv3-') and domTest: 
+#    print 'ERROR: experimental condition is specified, while the eye dominance is not!'
+#    core.quit()
+#elif (expInfo['para'] == '' or expInfo['para'] == 'bv3-') and not domTest:
+#    print 'ERROR: eye dominance is specified, while the experimental condition is not!'
+#    core.quit()
 
 # Setup the Window
 win = visual.Window(size=dr, fullscr=False, screen=1, allowGUI=False, 
@@ -261,7 +263,10 @@ if et:
     print '///set up the EDF file for eye-tracking///'
 
 # Condition-related variables
-conditionsFilePath = 'cond-files'+os.sep+'cond-'+expName+'_'+expPara+'.csv'
+if expPara == '':
+    conditionsFilePath = 'cond-files'+os.sep+'cond-'+expName+'.csv'
+else:
+    conditionsFilePath = 'cond-files'+os.sep+'cond-'+expName+'_'+expPara+'.csv'
 print conditionsFilePath
 os.chdir(_thisDir)
 
@@ -711,9 +716,9 @@ while len(stairs)>0:
                     fixR.draw()
                 # target presentation:
                 if t > targTstart and t < targTpeak:
-                    targGab.opacity = sigmoidMod((t-targTstart)*2/targTtot)*10**thisContr
+                    targGab.opacity = sigmoidMod((t-targTstart)*2/targTtot)*10**float(thisContr)
                 elif t > targTpeak and t < targTend:
-                    targGab.opacity = sigmoidMod((targTend-t)*2/targTtot)*10**thisContr
+                    targGab.opacity = sigmoidMod((targTend-t)*2/targTtot)*10**float(thisContr)
                 else:
                     targGab.opacity = 0
                 if t > targTstart and t < targTend:
@@ -729,7 +734,7 @@ while len(stairs)>0:
                 # keyboard checking is just starting
                 key_arrow.clock.reset()  # now t=0
                 event.clearEvents(eventType='keyboard')
-                kb_device.clearEvents()
+                #kb_device.clearEvents()
             # registering response at the end of the trial
             if key_arrow.status == STARTED and t > trialT:
                 theseKeys = event.getKeys(keyList=['left','right','down'])
